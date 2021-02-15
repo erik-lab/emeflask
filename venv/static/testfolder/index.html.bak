@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>File Tagger</title>
+    <meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+    <meta http-equiv="Content-Style-Type" content="text/css">
+    <meta name="generator" content="thesitewizard.com's Layout Wizard 3.0.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" media="all" href="styles.css">
+  </head>
+  <body>
+    <div id="tswcontainer">
+      <div id="tswheader">
+        <!-- start of header section: insert your logo, etc, here -->
+        <header align="center">
+          <h1>FileTagger v0.01</h1>
+        </header>
+        <p> wassup!?</p>
+        <!-- end of header section: insert your logo, etc, above this line --> </div>
+      <div id="tswcentrecombo">
+        <div id="tswsidecol">
+          <div id="tswsideproper">
+            <!-- start of side column: insert your navigation menu, etc, here -->
+            <p> Views </p>
+            <br>
+            <br>
+            <br>
+            <br>
+            <br>
+            <br>
+            <br>
+            <br>
+            <!-- Load an icon library -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+            <div class="sidebar">
+  <a href="#home"><i class="fa fa-fw fa-home"></i> Home</a><br>
+  <a href="#services"><i class="fa fa-fw fa-wrench"></i> Services</a>
+  <a href="#clients"><i class="fa fa-fw fa-user"></i> Clients</a>
+  <a href="#contact"><i class="fa fa-fw fa-envelope"></i> Contact</a>
+</div>
+            <!-- end of side column: put your navigation menu, etc, above this line -->
+          </div>
+        </div>
+        <div id="tswcontent">
+          <div id="tswcontproper">
+            <!-- start of content column: insert your content here -->
+            <h4 align="center">Documents</h4>
+
+<select class="form-control"style="width:450px" size="20">
+    <option value="1">option 1 </option>
+    <option value="2">option 2sdsdsdsd</option>
+    <option value="3">option 3</option>
+</select>
+
+            <!-- end of content column: put your content above this line --> </div>
+        </div>
+        <div id="tswothersidecol">
+          <div id="tswothersideproper">
+            <!-- start of side column: insert your navigation menu, etc, here -->
+            <!-- start of content column: insert your content here -->
+            <h4 align="center">Tags</h4>
+            <!-- end of side column: put your navigation menu, etc, above this line -->
+          </div>
+        </div>
+      </div>
+      <div style="clear: both;"></div>
+      <div style="clear: both;"></div>
+    </div>
+    
+  </body>
+</html>

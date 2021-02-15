@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <title>erik 1</title>
+  </head>
+  <body>
+    <div><br>
+      <h1 style="text-align: center;">Page Heading 2 </h1>
+    <p role="tabpanel" style="background-color: #ffcc99;">dasdsad&nbsp;&nbsp;&nbsp;
+      <span style="color: red;">SDFSDFSDF</span><br>
+    </p>
+    
+    </div>
+    <ul>
+      <li> <a href="file:///D:/edahl/Documents/flask2/venv/static/erik%201.html"><em><strong><b>jhghgjg</b></strong></em></a></li>
+    </ul>
+    <table style="width: 936px; height: 73px;" border="0">
+      <caption><br>
+      </caption>
+      <tbody>
+        <tr>
+          <th rowspan="1" colspan="3" style=" background-color: white;">top of
+            the table</th>
+        </tr>
+        <tr>
+          <td>adsasdasdasd</td>
+          <td><br>
+          </td>
+          <td>fghhfhfghfgh</td>
+        </tr>
+        <tr>
+          <td style="width: 439px;">
+            <select name="list">
+            </select>
+            asd</td>
+          <td style="width: 30px;"><br>
+          </td>
+          <td style="width: 533px;">&nbsp;tyrtrytryrtyrtyr</td>
+        </tr>
+      </tbody>
+    </table>
+    <div><br>
+    </div>
+    <ul>
+      <li>Figure out page tabs</li>
+      <li>figure out scrolling lists</li>
+      <li>figure out drop down multi-select list</li>
+      <li>Should I be using &lt;div&gt; to layout the page?</li>
+    </ul>
+  </body>
+</html>
