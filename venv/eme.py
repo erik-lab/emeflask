@@ -29,6 +29,7 @@ SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly',
 DISCOVERY_DOC = 'https://docs.googleapis.com/$discovery/rest?version=v1'
 DOCUMENT_ID = '1ht6PMhI5JIcaQLqgsMBQhwOIIlHYr455'   # used for debugging and testing
 
+emedb = eme_graph("bolt://localhost:7687", "eme", "eme")    # TODO put the database creds in the database
 
 def get_credentials(account):
     """ TODO Get valid user credentials from database.
@@ -379,13 +380,6 @@ def doc_getter():
 
             thisdoc.save()
     print("%d interesting document(s)" % interesting_files)
-
-emedb
-def dbconnect():
-    global emedb
-    emedb = eme_graph("bolt://localhost:7687", "eme", "eme")    # TODO put the database creds in the database
-    
-
 
 def ememain():
     # Startup - Open the database

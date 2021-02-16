@@ -1,5 +1,7 @@
 from flask import Flask, render_template, request, jsonify
-import DriveTesting.py
+import os
+import eme
+
 
 app = Flask(__name__)
 # defining a route
@@ -32,4 +34,9 @@ def handle_data():
     print('Gender: ', request.form['gender'])
     return "Request received successfully!"
 
-app.run(debug = True)
+def main():
+    app.run(debug = True)
+
+
+if __name__ == '__main__':
+    main()
