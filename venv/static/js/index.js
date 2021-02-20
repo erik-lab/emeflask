@@ -1,5 +1,5 @@
 // /static/index.js
-console.log('Hello Universe!')
+console.log('D!')
 
 var prevfile = 0;
 
