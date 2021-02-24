@@ -4,7 +4,7 @@
     <title>DocTagger v0.01</title>
     <meta http-equiv="Content-type" content="text/html;charset=UTF-8">
     <!-- >meta http-equiv="Content-Style-Type" content="text/css"> -->
-    <meta name="generator" content="thesitewizard.com's Layout Wizard 3.0.0">
+    <meta name="generator" content="thesitewizard.com but mostly Erik now">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}"> <!-- for Flask -->
     <!-- <link rel="stylesheet" href="../static/css/styles.css">   for direct file view -->
@@ -22,13 +22,44 @@
 <script src="{{ url_for('static', filename='js/index.js') }}"></script> <!-- for Flask -->
 <!-- <script src="../static/js/index.js" type="text/javascript"></script>       For local file -->
 
-<div id="tswheader">
-    <!-- start of header section: insert your logo, etc, here -->
-    <header align="center">
-        <h1>DocTagger v0.01</h1>
-    </header>
-    <!-- end of header section: insert your logo, etc, above this line -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+<script type="text/javascript">
+        $(function() {
+          $('a#connect').on('click', function(e) {
+            e.preventDefault()
+            $.getJSON('/connect/',
+                function(data) {
+                    $("#dbconnectInd").text('Database ' + data.dbstatus)
+                    $("#accountInd").text('Account: ' + data.account)
+                    //do nothing
+            });
+            return false;
+          });
+        });
+</script>
+
+<div id="headcontainer" class="container-fluid">
+    <div id="headrow" class="row">
+        <div id="headleft" class="col">
+           Hi {{varlist['name']}}<br>
+ <!--            {% for e in varlist2 %}
+                - {{varlist2[e]}}<br>
+            {% endfor %}   example of jinja/flask processing-->
+        </div>
+        <div id="headcenter" class="col">
+            <header>
+                <h1>DocTagger v0.01</h1>
+            </header>
+        </div>
+        <div id="headright" class="col">
+            <br>
+            <div id="dbconnectInd" class="text-end">Database {{varlist['dbstatus']}}</div>
+            <div id="accountInd" class="text-end">Account: {{varlist['account']}}</div>
+        </div>
+    </div>
 </div>
+</div>
+
 
 <br>
 <div id="maincontainer" class="container-fluid">
@@ -36,20 +67,25 @@
         <div id="menu" class="col-2">
             <center><b>Menu</b></center>
             <hr id="titlehr" style="height:4px"></hr>
-            <a href="#file"><i class="fa fa-fw fa-file"></i> Documents</a><br>
+            <a href="#file"><i class="fa fa-fw fa-file"></i> My Docs</a><br>
+            <a href="#file"><i class="fa fa-fw fa-file"></i> Shared Docs</a><br>
             <hr>
             <i style="color:gray" class="fa fa-fw fa-tag"></i> Tags<br>
             <hr>
+            <a href="#connect" id="connect"><i class="fa fa-fw fa-sign-in"></i> Connect...</a><br>
+            <a href="#disconn" id="disconn"><i class="fa fa-fw fa-sign-out"></i> Disconnect</a><br>
+            <hr>
+
         </div>
-        <div id="docs" class="col-6">
+        <div id="docs" class="col-5">
             <center><b>Documents</b></center>
             <hr id="titlehr" style="height:4px">
 
             <ul class="list-group" id="filelist">
-                <li id="1" class="list-group-item"><a href="#file"><i class="fa fa-fw fa-folder" style="color:blue"></i>
+                <li id="li1" class="list-group-item"><a href="#file"><i class="fa fa-fw fa-folder"></i>
                     Folder #1</a><br></li>
                 <!-- <hr style="height:1px;border-width:0;color:gray;background-color:gray">-->
-                <li id="2" class="list-group-item"><a href="#file"><i class="fa fa-fw fa-folder" style="color:blue"></i>
+                <li id="2" class="list-group-item"><a href="#file"><i class="fa fa-fw fa-folder"></i>
                     Folder #2</a><br></li>
                 <!--<hr style="height:1px;border-width:0;color:gray;background-color:gray"> -->
                 <li id="3" class="list-group-item"><a href="#file"><i class="fa fa-fw fa-file" style="color:gray"></i>
@@ -69,19 +105,15 @@
             </ul>
         </div>
 
-        <div id="tags" class="col-4">
+        <div id="tags" class="col-5">
             <center><b>Tags for Selected Document</b></center>
             <hr id="titlehr" style="height:4px"></hr>
             <div class="container">
                 <div class="row">
                     <div class="col-sm">
-                        One of three columns
-                    </div>
-                    <div class="col-sm">
-                        One of three columns
-                    </div>
-                    <div class="col-sm">
-                        One of three columns
+                        Tag lists,
+                        Tag clouds,
+                        Tag blobs
                     </div>
                 </div>
             </div>

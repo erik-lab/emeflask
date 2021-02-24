@@ -1,28 +1,29 @@
-from flask import Flask, render_template, request, jsonify
-import os
+from flask import Flask, render_template, request, jsonify, redirect
 import eme
-
 
 app = Flask(__name__)
 # defining a route
-@app.route("/employee/<id>")
-def employee_details(id):
-    return render_template('index.html', name = id)
 
-@app.route("/") # decorator
-def hello():
+@app.route("/", methods=['GET', 'POST', 'PUT']) # decorator
+def index():
     # returning string
-    return render_template('index.html', name = 'erik')
+    varlist = eme.get_session_vars()
+    # {'name' : session.name, 'dbstatus' : session.dbstatus, 'account' : session.account}
+    return render_template('index.html', varlist=varlist)
 
 # serving form web page
 @app.route("/form")
 def form():
     return render_template('form.html')
 
-#@app.route("/", methods=['GET', 'POST', 'PUT']) # decorator
-def home(): # route handler function
-    # returning a response
-    return "Hello World!"
+# START SAMPLE
+
+# background process happening without any refreshing
+@app.route('/connect/', methods=['GET', 'POST', 'PUT'])
+def connect(acct="NONE"):
+    return eme.connect_btn()
+
+#  END SAMPLE
 
 
 # handling form data
@@ -36,6 +37,7 @@ def handle_data():
 
 def main():
     app.run(debug = True)
+
 
 
 if __name__ == '__main__':

@@ -1,5 +1,5 @@
 // /static/index.js
-console.log('D!')
+console.log('Starting DocTagger')
 
 var prevfile = 0;
 

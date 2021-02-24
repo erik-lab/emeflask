@@ -16,10 +16,11 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from operator import itemgetter, attrgetter
 from monkeylearn import MonkeyLearn
-# import lxml
 from docx import Document
 from neo4j import GraphDatabase
 import os
+import sys
+from flask import jsonify
 
 # GLOBALS for eme Module for now - specific to Google API access
 # If modifying these scopes, delete the file drive.pickle.
@@ -29,7 +30,6 @@ SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly',
 DISCOVERY_DOC = 'https://docs.googleapis.com/$discovery/rest?version=v1'
 DOCUMENT_ID = '1ht6PMhI5JIcaQLqgsMBQhwOIIlHYr455'   # used for debugging and testing
 
-emedb = eme_graph("bolt://localhost:7687", "eme", "eme")    # TODO put the database creds in the database
 
 def get_credentials(account):
     """ TODO Get valid user credentials from database.
@@ -40,6 +40,7 @@ def get_credentials(account):
     Returns:
         Credentials, the obtained credential.
     """
+    print("in Get Credentials")
     store = file.Storage('token.json')
     credentials = store.get()
     account += 1
@@ -57,6 +58,9 @@ def retrieve_all_files(service):
       service: Drive API service instance.
     Returns:
       List of File resources.
+
+      TODO - accept a directory name and shared flag as input
+      TODO - modify to use the session service values
     """
     result = []
     page_token = None
@@ -157,6 +161,25 @@ def read_structural_elements(elements):
 def motivation():
     return 'getdocs'
 
+
+class eme_session:
+    def __init__(self, name='', account='', dbstatus='Not Connected', creds = None):
+        self.name = name
+        self.account = account
+        self.dbstatus = dbstatus
+        self.creds = creds
+
+    def setname(self, name):
+        self.name = name
+
+    def setacct(self, account):
+        self.account = account
+
+    def setdb(self, dbstatus):
+        self.dbstatus = dbstatus
+
+    def setcreds(self, creds):
+        self.creds = creds
 
 class eme_object:
     def __init__(self, obj_source, obj_acct, obj_type, obj_id, obj_name, obj_mod):
@@ -308,17 +331,9 @@ def doc_getter():
     #           save_doc(docid)
     #
     """
-    testDocCount = 200
-    accountID = 1
-    creds = get_credentials(accountID)
-    service = build('drive', 'v3', credentials=creds)
-    http = creds.authorize(Http())
-    docs_service = discovery.build(
-        'docs', 'v1', http=http, discoveryServiceUrl=DISCOVERY_DOC)
+    # TODO get drive and doc services from session
+    testDocCount = 1
 
-    # Call the Drive v3 API
-    # results = service.files().list(
-    #     pageSize=10, fields="nextPageToken, files(id, name)").execute()
     interesting_files = 0
 
     f = retrieve_all_files(service)
@@ -381,6 +396,7 @@ def doc_getter():
             thisdoc.save()
     print("%d interesting document(s)" % interesting_files)
 
+
 def ememain():
     # Startup - Open the database
     emedb.confirm_required_objects()
@@ -391,4 +407,36 @@ def ememain():
     # Leaving - Shut down the database
     emedb.close()
 
-# TODO hi there
+# UI CONTROLS
+
+def get_session_vars():
+    global session
+    return {'name' : session.name, 'dbstatus' : session.dbstatus, 'account' : session.account}
+
+def connect_btn():
+    print ("executing connect action")
+
+    # TODO do your voodoo here
+    # TODO add drive service and doc service to session
+    global session
+    accountID = 1
+    session.setcreds(get_credentials(accountID))
+    service = build('drive', 'v3', credentials=session.creds)
+    http = session.creds.authorize(Http())
+    docs_service = discovery.build(
+        'docs', 'v1', http=http, discoveryServiceUrl=DISCOVERY_DOC)
+
+    session.setname('Erik')                 # TODO get this from the database
+    session.setacct('edahl9000@gmail.com')  # TODO get this from the database
+    varlist = get_session_vars()
+    return json.dumps(varlist, indent = 4)  # jsonify(status=session.dbstatus, account=session.account, name=session.name) # render_template('index.html', varlist=VARLIST)
+
+###   GLOBAL DATABASE CONNECTION
+try:
+    emedb = eme_graph("bolt://localhost:7687", "eme", "eme")  # TODO put the database creds in the database
+    print("************** Connected to the eMe database")
+
+    ###  SETUP SESSION OBJECT
+    session = eme_session('', 'No Account', 'Connected', None)
+except:
+    sys.exit("************** Error connecting to the eMe database")
