@@ -37,6 +37,9 @@
             $("center#docTitle").html("<b>Shared Documents</b>");
 
         })
+        $('a#eventlink').click(function(e) {
+            get_event(e);
+        })
     });
 
 </script>
@@ -78,6 +81,8 @@
             <a href="#connect" id="connect"><i class="fa fa-fw fa-sign-in"></i> Connect...</a><br>
             <a href="#disconn" id="disconn" class="isDisabled"><i class="fa fa-fw fa-sign-out"></i> Disconnect</a><br>
             <hr>
+            <br>
+            <a href="#events" id="eventlink">Events</a>
 
         </div>
         <div id="docs" class="col-5">

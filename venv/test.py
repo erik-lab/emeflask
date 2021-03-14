@@ -45,6 +45,13 @@ def tag_read_handler(docid='missing'):
     return eme.tag_reader(docid)
 
 
+# Play with EventBrite
+@app.route('/event/', methods=['GET'])
+def event_handler():
+    print(f"Event handler")
+    return eme.tag_reader(docid)
+
+
 
 
 def main():

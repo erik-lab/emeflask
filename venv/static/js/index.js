@@ -5,6 +5,13 @@ var prevfile = "";
 var test;
 var dclick_e = null;
 
+function get_event(e) {
+    console.log("get_event");
+    $.getJSON('https://www.eventbriteapi.com/v3/users/me/?token=V2U2BERJKY6H45Z3PFTU', function(data) {
+        alert("Hi " + data.first_name);
+    })
+}
+
 function tag_reader(e) {
     // use the docID to look up related tags and frequencies
     console.log("tag_reader started");
