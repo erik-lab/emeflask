@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect
+from flask import Flask, render_template, request, g, jsonify, redirect
 import eme
 
 app = Flask(__name__)
@@ -16,24 +16,36 @@ def index():
 def form():
     return render_template('form.html')
 
-# START SAMPLE
 
+# Connect Button Handler
 # background process happening without any refreshing
 @app.route('/connect/', methods=['GET', 'POST', 'PUT'])
-def connect(acct="NONE"):
+def connect_handler(acct="NONE"):
     return eme.connect_btn()
 
-#  END SAMPLE
+
+# doc list reader Handler
+# background process happening without any refreshing
+@app.route('/docreader/', methods=['GET', 'POST', 'PUT'])
+def doc_read_handler():
+    return eme.doc_reader(shared=False)
+
+# doc list reader Handler for shared docs
+# background process happening without any refreshing
+@app.route('/sharedreader/', methods=['GET', 'POST', 'PUT'])
+def shared_read_handler():
+    return eme.doc_reader(shared=True)
+
+# Tag list reader for docs
+# background process happening without any refreshing
+@app.route('/tagreader/', methods=['GET'])
+def tag_read_handler(docid='missing'):
+    docid = request.args.get('docid', type=str) # 'fubar',
+    print(f"doc id: {docid}")
+    return eme.tag_reader(docid)
 
 
-# handling form data
-@app.route('/form-handler', methods=['POST'])
-def handle_data():
-    # since we sent the data using POST, we'll use request.form
-    print('Name: ', request.form['name'])
-    # we can also request.values
-    print('Gender: ', request.form['gender'])
-    return "Request received successfully!"
+
 
 def main():
     app.run(debug = True)

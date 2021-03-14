@@ -20,7 +20,7 @@ from docx import Document
 from neo4j import GraphDatabase
 import os
 import sys
-from flask import jsonify
+from flask import Response
 
 # GLOBALS for eme Module for now - specific to Google API access
 # If modifying these scopes, delete the file drive.pickle.
@@ -43,7 +43,7 @@ def get_credentials(account):
     print("in Get Credentials")
     store = file.Storage('token.json')
     credentials = store.get()
-    account += 1
+    account += 1    # debugging
 
     if not credentials or credentials.invalid:
         flow = client.flow_from_clientsecrets('credentials.json', SCOPES)
@@ -51,7 +51,7 @@ def get_credentials(account):
     return credentials
 
 
-def retrieve_all_files(service):
+def retrieve_all_files(service, parent='root', filter=None, shared=False):
     """Retrieve a list of File resources.
 
     Args:
@@ -59,36 +59,47 @@ def retrieve_all_files(service):
     Returns:
       List of File resources.
 
-      TODO - accept a directory name and shared flag as input
-      TODO - modify to use the session service values
     """
+    print("in retrieve_all_files")
     result = []
     page_token = None
     while True:
-        try:
-            param = {}
-            if page_token:
-                param['pageToken'] = page_token
-            param['corpora'] = 'user'
-            # param['driveId'] = 'root'
-            # param["shared"] = False      # get API error when using this or "trashed"
+        param = {}
+        if page_token:
+            param['pageToken'] = page_token
+        param['corpora'] = 'user'
+        param['fields'] = '*'       # TODO strip out unneeded fields
+
+        if shared:
+            param['q'] = "trashed = false and " + \
+                         "sharedWithMe"
             param['includeItemsFromAllDrives'] = 'true'
             param['supportsAllDrives'] = 'true'
-            param['orderBy'] = 'name'
+            param['orderBy'] = 'folder,name'
             param['spaces'] = 'drive'
-            param['fields'] = '*'
-            param['q'] = "trashed = false" + \
-                         " and mimeType != 'application/vnd.google-apps.folder'"
-            # " and 'root' in parents"
-            files = service.files().list(**param).execute()
+        else:
+            param['q'] = f"trashed = false and '{parent}' in parents"
+            param['includeItemsFromAllDrives'] = 'false'
+            param['supportsAllDrives'] = 'true'
+            param['orderBy'] = 'folder,name'
+            param['spaces'] = 'drive'
 
-            result.extend(files['files'])
-            page_token = files.get('nextPageToken')
-            if not page_token:
-                break
-        except errors.HttpError as error:
-            print('An error occurred: %s' % error)
+        try:
+            res = service.files()
+            try:
+                xfiles = res.list(**param).execute()
+            except:
+                print("Error with service.files() resource: %s" % res)
+                return
+        except:
+            print("Error with res.list() ")
+            return
+
+        result.extend(xfiles['files'])
+        page_token = xfiles.get('nextPageToken')
+        if not page_token:
             break
+
     return result
 
 
@@ -159,15 +170,21 @@ def read_structural_elements(elements):
 
 
 def motivation():
+    #  What is the system motivated to do next?
+    # TODO - figure out motivation logic/process
     return 'getdocs'
 
 
 class eme_session:
-    def __init__(self, name='', account='', dbstatus='Not Connected', creds = None):
+    def __init__(self, name='', account='', dbstatus='Not Connected', creds=None):
         self.name = name
         self.account = account
         self.dbstatus = dbstatus
         self.creds = creds
+        self.drive_service = None
+        self.doc_service = None
+        self.path_nm = ['/']
+        self.path_id = ['root']
 
     def setname(self, name):
         self.name = name
@@ -180,6 +197,15 @@ class eme_session:
 
     def setcreds(self, creds):
         self.creds = creds
+
+    def setdrive(self, drive_service):
+        self.drive_service = drive_service
+
+    def setdoc(self, doc_service):
+        self.doc_service = doc_service
+
+    def __str__(self):
+        return str(self.__class__) + ": " + str(self.__dict__)
 
 class eme_object:
     def __init__(self, obj_source, obj_acct, obj_type, obj_id, obj_name, obj_mod):
@@ -202,8 +228,8 @@ class eme_object:
                   "WHERE o.id = '{0}'" \
                   "return o.name, o.last_modified, s.name, a.name, ot.name"
 
-        with emedb.driver.session() as session:
-            result = session.read_transaction(lambda tx: list(tx.run(objfind.format(self.id))))
+        with emedb.driver.session() as dbsession:
+            result = dbsession.read_transaction(lambda tx: list(tx.run(objfind.format(self.id))))
 
         interest = False
         if len(result) == 0:
@@ -269,19 +295,20 @@ class eme_graph:
         self.driver.close()
 
     def run(self, cmd):
-        with self.driver.session() as session:
-            db_result = session.run(cmd)
+        with self.driver.session() as dbsession:
+            db_result = dbsession.run(cmd)
             for record in db_result:
                 print("DB_result Record :%s" % record)
-
         return db_result
 
     def confirm_required_objects(self):
-        with self.driver.session() as session:
-            session.run("merge (n:EME_Owner {name: 'Erik Dahl', startDate: '01/30/2021'})")
-            session.run("merge (a:Account {name: 'Account #1', startDate: '01/31/2021', creds: ''}) ")
-            rel = "MATCH (o:EME_Owner),(a:Account) WHERE o.name='Erik Dahl' AND a.name = 'Account #1' merge (o)-[:owns]->(a)"
-            session.run(rel)
+        with self.driver.session() as dbsession:
+            dbsession.run("merge (n:EME_Owner {name: 'Erik Dahl', startDate: '01/30/2021'})")
+            dbsession.run("merge (a:Account {name: 'Account #1', startDate: '01/31/2021', creds: ''}) ")
+            rel = "MATCH (o:EME_Owner),(a:Account) " \
+                  "WHERE o.name='Erik Dahl' AND a.name = 'Account #1' " \
+                  "merge (o)-[:owns]->(a)"
+            dbsession.run(rel)
         # TODO - figure out how to determine if there was an error - shouldn't be one, but...
         if False:
             raise ValueError("Owner or Account Objects are missing!")
@@ -291,6 +318,8 @@ class eme_graph:
 
 
 def tag_source(thedoc):
+    print("in tag_source")
+
     tlist = []
     tlist.extend(re.split("[; ,._\-\%]", thedoc.get('name')))
     tlist.append(thedoc['modifiedTime'])
@@ -320,6 +349,7 @@ def tag_content(text):
 
 def doc_getter():
     """
+    # TODO logic for shared documents and other parameters
     # TODO complete docGetter full logic
     # for each account:
     #   get_credentials(account)
@@ -331,22 +361,25 @@ def doc_getter():
     #           save_doc(docid)
     #
     """
-    # TODO get drive and doc services from session
-    testDocCount = 1
+    global session
 
+    testDocCount = 30
     interesting_files = 0
 
-    f = retrieve_all_files(service)
+    f = retrieve_all_files(session.drive_service)
     for item in f:
         if testDocCount == 0:
             break
         testDocCount -= 1
         thisdoc = eme_object('Google Docs', 'Account #1', 'doc', item['id'], item['name'], item['modifiedTime'])
+        print('%s \t %s \t %s ' % (item['id'], item['mimeType'], item['name']))  # item['id']))
+
         if thisdoc.interesting():
             interesting_files += 1
             print('%s: \t %s' % (item['id'], item['name']))  # item['id']))
             thisdoc.source_tags = tag_source(item)
             # print("Source Tags are: %s" % thisdoc.source_tags)
+
             txt = ''  # initialize the doc text holder
             # TODO add more generic logic for any doc type
             fileExtension = item['name'].split(".")[-1]
@@ -356,19 +389,19 @@ def doc_getter():
 
             elif fileExtension == "txt":
                 # print('do a txt file')
-                download_file(service, item['id'], item['mimeType'], 'temp.txt')
+                download_file(session.doc_service, item['id'], item['mimeType'], 'temp.txt')
                 tf = open('temp.txt', 'r')
                 txt = tf.read()
                 tf.close()
 
             elif fileExtension == 'docx':
                 # print('do a docx')
-                download_file(service, item['id'], item['mimeType'], item['name'])
+                download_file(session.drive_service, item['id'], item['mimeType'], item['name'])
                 txt = read_docx_text(item['name'])
 
             elif 'google-apps.document' in item['mimeType']:
                 # print('Do a google Doc')
-                doc = docs_service.documents().get(documentId=item['id']).execute()
+                doc = session.drive_service.documents().get(documentId=item['id']).execute()
                 doc_content = doc.get('body').get('content')
                 txt = read_structural_elements(doc_content)
 
@@ -386,7 +419,7 @@ def doc_getter():
             # at this point we have the text from the document
             # now extract keywords from doc name and content and
             # append all to a keyword list
-            getKeywords = True         # TODO getKeywords is a flag to skip reading keywords due to quotas
+            getKeywords = False         # TODO getKeywords is a flag to skip reading keywords due to quotas
             if txt and getKeywords:
                 thisdoc.content_tags = tag_content(txt)
                 # print("Content Taglist are: %s" % thisdoc.content_tags)
@@ -410,33 +443,116 @@ def ememain():
 # UI CONTROLS
 
 def get_session_vars():
+    # TODO modify to pull values from the database
     global session
-    return {'name' : session.name, 'dbstatus' : session.dbstatus, 'account' : session.account}
+    return {'name': session.name, 'dbstatus': session.dbstatus, 'account': session.account}
 
 def connect_btn():
-    print ("executing connect action")
+    print("in connect_btn")
 
-    # TODO do your voodoo here
-    # TODO add drive service and doc service to session
     global session
-    accountID = 1
+    accountID = 1       # TODO get this from the database
     session.setcreds(get_credentials(accountID))
     service = build('drive', 'v3', credentials=session.creds)
     http = session.creds.authorize(Http())
     docs_service = discovery.build(
         'docs', 'v1', http=http, discoveryServiceUrl=DISCOVERY_DOC)
 
+    session.setdrive(service)
+    session.setdoc(docs_service)
     session.setname('Erik')                 # TODO get this from the database
     session.setacct('edahl9000@gmail.com')  # TODO get this from the database
     varlist = get_session_vars()
-    return json.dumps(varlist, indent = 4)  # jsonify(status=session.dbstatus, account=session.account, name=session.name) # render_template('index.html', varlist=VARLIST)
+    # doc_reader()
 
-###   GLOBAL DATABASE CONNECTION
+    return json.dumps(varlist, indent=4)
+    # jsonify(status=session.dbstatus, account=session.account, name=session.name)
+    # render_template('index.html', varlist=VARLIST)
+
+
+def doc_reader(shared=False):
+    # read the list of documents from the current directory settings
+    filelist = [{'id': '1', 'name': 'file #1', 'type': 'third file'},
+                {'id': '2', 'name': 'file #2', 'type': 'type 3'}]       # debugging
+    filelist = []   # debugging
+    print("in doc_reader")      # TODO doc_reader remove this
+
+    global session
+    print("path: %s" % session.path_id)
+    files = []
+
+    if shared:
+        try:
+            files = retrieve_all_files(session.drive_service, shared=shared)
+        except:
+            print("Doc_Reader retrieve error - for shared Docs - ending")
+            return
+    else:
+        try:
+            dir = session.path_id[len(session.path_id)-1]
+            files = retrieve_all_files(session.drive_service, dir, shared=shared)
+        except:
+            print("Doc_Reader retrieve error - for My Docs - ending")
+            return
+    print("File Count: %s" % len(files))     # TODO doc_reader remove this
+
+    if files:
+        testDocCount = 30               # TODO - take this out
+        for item in files:
+            if testDocCount == 0:
+                break
+            testDocCount -= 1
+            filelist.append({'id': item['id'], 'name': item['name'], 'mimeType': item['mimeType'],
+                         'parents': item.get('parents', 'No Parent')})
+
+    return json.dumps(filelist, indent=4)
+
+def get_tags(tx):
+    result = tx.run(
+            f"match(o:Object {{id: '1C91jeACfcochRsNGFO2h7Jw8shB6r-lsU9yE9SbSH_Q'}})--(t:Tag) return t.name as tag, t.name as freq")
+    tags = []
+    for record in result:
+        tags.append(dict(record))
+    #     print("dict(record) %s" % dict(record))
+    return tags
+
+
+def tag_reader(objid=str):
+    if objid:
+        # look for the object ID and return name and last modified date, owner and shared with
+
+        objfind = f"MATCH (t:Tag)--(o:Object) where o.id = {objid} \
+                    WITH t \
+                    OPTIONAL MATCH (t)--(b:Object) \
+                    WITH t, count(b) as freq \
+                    RETURN t.name as tag, freq \
+                    ORDER BY freq desc, tag asc"
+
+        with emedb.driver.session() as db:
+            result = db.read_transaction(lambda tx: list(tx.run(objfind)))
+        # print(f"Result: {result}")
+        tags = []
+        for record in result:
+            tags.append(dict(record))
+            # print("dict(record) %s" % dict(record))
+
+        if len(result) == 0:
+            tags = [{'tag': 'No Tags'}]
+    else:
+        tags = [{'tag': 'No ID'}]
+
+    print(f"in eme.doc_reader {objid}")
+    # print(f"taglist is: {taglist}")
+
+    # return json.dumps(result, indent=4)
+    return Response(json.dumps(tags), mimetype="application/json")
+
+# #######  GLOBAL DATABASE CONNECTION
 try:
     emedb = eme_graph("bolt://localhost:7687", "eme", "eme")  # TODO put the database creds in the database
     print("************** Connected to the eMe database")
 
     ###  SETUP SESSION OBJECT
-    session = eme_session('', 'No Account', 'Connected', None)
+    session = eme_session('', 'Not Connected', 'Connected', None)
 except:
     sys.exit("************** Error connecting to the eMe database")

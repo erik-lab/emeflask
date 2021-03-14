@@ -13,6 +13,10 @@
 body {
     font-family: Arial, Helvetica, sans-serif ;
 }
+a.isDisabled {
+    pointer-events: none;
+    color: gray;
+}
 div#headleft {
     align: left;
 }
@@ -39,6 +43,18 @@ div#footcontainer {
     max-height: 400px;
     margin-bottom: 10px;
     overflow:scroll;
+    font-size: 9pt;
+}
+div#taglistdiv {
+    height:500px;
+    max-height: 400px;
+    overflow:scroll;
+    font-size: 9pt;
+}
+table#taglist {
+}
+    margin-bottom: 1px;
+    font-size: 9pt;
 }
 img {
 	max-width: 100% ;
