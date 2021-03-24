@@ -6,12 +6,19 @@ app = Flask(__name__)
 
 @app.route("/", methods=['GET', 'POST', 'PUT']) # decorator
 def index():
+    varlist = eme.get_session_vars()
+    return render_template('index.html', varlist=varlist)
+
+
+@app.route("/docs", methods=['GET', 'POST', 'PUT']) # decorator
+def docs():
     # returning string
     varlist = eme.get_session_vars()
     # {'name' : session.name, 'dbstatus' : session.dbstatus, 'account' : session.account}
-    return render_template('index.html', varlist=varlist)
+    return render_template('docTagger.html', varlist=varlist)
 
 # serving form web page
+# TODO Get rid of this endpoint
 @app.route("/form")
 def form():
     return render_template('form.html')

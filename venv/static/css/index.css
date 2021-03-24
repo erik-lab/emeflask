@@ -1,0 +1,40 @@
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=windows-1252">
+    <link rel="alternate stylesheet" type="text/css" href="resource://gre-resources/plaintext.css"
+
+      title="here we are">
+  </head>
+
+<body>
+<pre>
+body {
+    font-family: Arial, Helvetica, sans-serif ;
+}
+div#headrow {
+    background-color: GoldenRod;
+}
+div#headright {
+    font-size: 9pt;
+}
+div#menu {
+    background-color: White;
+	border-width: 1px;
+	border-style: solid;
+	border-color: LightGray;
+}
+div#emptyDiv {
+    height: 500px;
+}
+div#footcontainer {
+    background-color: AliceBlue;
+    color: SlateGray;
+	border-width: 1px;
+	border-style: solid;
+	border-color: LightGray;
+	text-align: center;
+	font-size: 9pt;
+}
+</pre>
+</body>
+</html>

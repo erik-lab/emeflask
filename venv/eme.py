@@ -467,7 +467,7 @@ def connect_btn():
 
     return json.dumps(varlist, indent=4)
     # jsonify(status=session.dbstatus, account=session.account, name=session.name)
-    # render_template('index.html', varlist=VARLIST)
+    # render_template('docTagger.html', varlist=VARLIST)
 
 
 def doc_reader(shared=False):
