@@ -21,6 +21,7 @@ from neo4j import GraphDatabase
 import os
 import sys
 from flask import Response
+import base64
 # import pandas
 
 
@@ -54,7 +55,7 @@ def get_credentials(account):
     return credentials
 
 
-def download_file(service, file_id, mimetype, filename):
+def download_gdrive_file(service, file_id, mimetype, filename):
     if "google-apps" in mimetype:
         return
     request = service.files().get_media(fileId=file_id)
@@ -66,6 +67,29 @@ def download_file(service, file_id, mimetype, filename):
         # print("Download %d%%." % int(status.progress() * 100))
         print(".", end='')
     return  # use with io.BytesIO  fh.getvalue()
+
+
+def download_gmail_attachments(service, msg_id):
+    try:
+        message = service.users().messages().get(userId='me', id=msg_id).execute()
+
+        for part in message['payload']['parts']:
+            if part['filename']:
+                if 'data' in part['body']:
+                    data = part['body']['data']
+                else:
+                    att_id = part['body']['attachmentId']
+                    att = service.users().messages().attachments().get(userId='me', messageId=msg_id,
+                                                                       id=att_id).execute()
+                    data = att['data']
+                file_data = base64.urlsafe_b64decode(data.encode('UTF-8'))
+                path = 'temp/' + part['filename']
+
+                with open(path, 'wb') as f:
+                    f.write(file_data)
+
+    except errors.HttpError as error:
+        print(f"An error occurred: {error}")
 
 
 def read_docx_text(docname):
@@ -195,6 +219,7 @@ class Eme_Object:
         self.source = obj_source
         self.type = obj_type
         self.id = obj_id
+        self.obj_source_id = None   # this is used for the gmail message id
         self.name = obj_name
         self.modified = obj_mod     # TODO read up on how to create indexes on date properties
         self.account = obj_acct
@@ -317,6 +342,21 @@ class eme_graph:
         # TODO - figure out how to determine if there was an error - shouldn't be one, but...
 
 
+def get_gmail_parents(service, ids):
+    # for each of the IDs, get the label name and append name to the return list
+    plist = []
+
+    for pid in ids:
+        try:
+            res = session.gmail_service.users().labels().get(userId='me', id=pid).execute()
+            plist.append(res['name'])
+        except:
+            plist.append("No Labels")
+            raise
+
+    return plist
+
+
 def get_gdrive_parents(service, ids):
     # for each of the IDs, get the document info and append name to the return list
 
@@ -360,6 +400,133 @@ def tag_content(text):
         # print("=> %s" % keyword['parsed_value'])
         thelist.append(keyword['parsed_value'])
     return thelist
+
+
+def scan_gmail_doc(service, thisdoc):
+    """ tag scanning for a GMail document
+
+    :service:  the gmail service to use
+    :thisdoc: the eme object to work on
+    :return: boolean if document is interesting
+    """
+    print(f"Email Scan Doc called: {thisdoc.name}")
+    global session
+
+    if thisdoc.interesting():
+        thisdoc.source_tags = tag_source(thisdoc)
+        # print("Source Tags are: %s" % thisdoc.source_tags)
+
+        txt = ''  # initialize the doc text holder
+        # TODO add more generic logic for any doc type
+        ext = thisdoc.name.split(".")[-1]
+        if ext == 'csv':
+            # handle a CSV file
+            pass
+
+        elif ext == "txt":
+            # print('do a txt file')
+            download_gmail_attachments(service, thisdoc.obj_source_id)
+            tf = open('temp/' + thisdoc.name, 'r')
+            txt = tf.read()
+            tf.close()
+
+        elif ext == 'docx':
+            # print('do a docx')
+            download_gmail_attachments(service, thisdoc.obj_source_id)
+            txt = read_docx_text('temp/' + thisdoc.name)
+
+        elif 'google-apps.document' in thisdoc.mimeType:
+            print("Got a Google Docs Document!")
+
+        elif 'google-apps.spreadsheet' in thisdoc.mimeType:
+            # todo add google sheet logic is same for docs and presentations?
+            print("Got a Google Sheets Document!")
+            pass
+
+        else:
+            print(f"Other Doc Type: {thisdoc.mimeType}")
+
+        # at this point we have the text from the document
+        # now extract keywords from doc name and content and
+        # append all to a keyword list
+        getKeywords = False         # TODO getKeywords is a flag to skip reading keywords due to API quotas
+        if txt and getKeywords:
+            thisdoc.content_tags = tag_content(txt)
+            # print("Content Taglist are: %s" % thisdoc.content_tags)
+
+        # TODO Add in ability to include user tags - may need rules on when to apply them
+        thisdoc.save()
+        return True
+    else:
+        return False
+
+
+def scan_gmail_attachments(service):
+    """ look through all messages with attachments and process documents
+
+    get email list for folder
+    for each file
+        if contains an attachment
+            for each attachment
+                scan_document
+    :param service: Gmail Service to use
+    :return: int: count of the number of interesting docs scanned
+    """
+    global session
+    print(f"scan gmail attachments called")
+
+    msgs = service.users().messages().list(userId='me', q='has:attachment').execute().get('messages', [])
+    interesting = 0
+    for msg in msgs:
+        msgDetail = service.users().messages().get(userId='me', id=msg['id']).execute()  # Get the message
+        labels = msgDetail['labelIds']
+        payload = msgDetail['payload']
+        headers = payload['headers']
+        subject = sender = msgdate = recipient = ''
+
+        # Look for Subject and Sender Email in the headers
+        for d in headers:
+            if d['name'] == 'Subject':
+                subject = d['value']
+            if d['name'] == 'From':
+                sender = d['value']
+            if d['name'] == 'Date':
+                msgdate = d['value']
+            if d['name'] == 'To':
+                recipient = d['value']
+
+        msg_parts = payload.get('parts')  # fetching the message parts
+        for part in msg_parts:
+            if 'attachmentId' in part['body']:
+                thisdoc = Eme_Object('Gmail Doc', 'Account #1', 'doc', part['body']['attachmentId'],
+                                     part['filename'], msgdate, part['mimeType'],
+                                     labels, recipient)
+                thisdoc.parents = get_gmail_parents(service, thisdoc.parent_ids)
+                thisdoc.obj_source_id = msg['id']
+
+                # Get the attachment and call scan_gmail_doc
+                if scan_gmail_doc(service, thisdoc):
+                    interesting += 1
+    return interesting
+
+
+def gmail_scanner():
+    """ scan selected email folders for messages with attachments and scan the attachments
+
+    :return: int:  count of interesting documents scanned
+    """
+    print("In Gmail Scan")
+    interesting = 0
+
+    if motivation() == 'getdocs':   # TODO figure out the motivation driver
+        interesting += scan_gmail_attachments(session.gmail_service)
+        result = json.dumps({'return_code': 'Motivated', 'scan_count': interesting}, indent=4)
+    else:
+        result = json.dumps({'return_code': 'Not motivated', 'scan_count': '0'}, indent=4)
+
+    print(result)
+
+    return result
 
 
 def retrieve_Gdrive_files(service, parent='root', filter=None, shared=False):
@@ -477,14 +644,14 @@ def scan_drive_doc(thisdoc):
 
         elif ext == "txt":
             # print('do a txt file')
-            download_file(session.drive_service, thisdoc.id, thisdoc.mimeType, 'temp/temp.txt')
+            download_gdrive_file(session.drive_service, thisdoc.id, thisdoc.mimeType, 'temp/temp.txt')
             tf = open('temp/temp.txt', 'r')
             txt = tf.read()
             tf.close()
 
         elif ext == 'docx':
             # print('do a docx')
-            download_file(session.drive_service, thisdoc.id, thisdoc.mimeType, 'temp/' + thisdoc.name)
+            download_gdrive_file(session.drive_service, thisdoc.id, thisdoc.mimeType, 'temp/' + thisdoc.name)
             txt = read_docx_text('temp/' + thisdoc.name)
 
         elif 'google-apps.document' in thisdoc.mimeType:
@@ -515,119 +682,6 @@ def scan_drive_doc(thisdoc):
         return True
     else:
         return False
-
-
-def doc_getter():
-    """
-    # TODO logic for shared documents and other parameters
-    # TODO complete docGetter full logic
-    # for each account:
-    #   get_credentials(account)
-    #   For each of accountDocs:
-    #       If new doc:
-    #           get_doc_source_tags(docid)
-    #       if interestingDoc(docid):
-    #           get_doc_content_tags(docid)
-    #           save_doc(docid)
-    #
-    """
-    global session
-
-    testDocCount = 30
-    interesting_files = 0
-
-    f = retrieve_Gdrive_files(session.drive_service, parent='1lVPugx39Y7O3wxrqr-1ljky8FYHr2DZa')
-    for item in f:
-        if testDocCount == 0:
-            break
-        testDocCount -= 1
-
-        thisdoc = Eme_Object('Google Docs', 'Account #1', 'doc', item['id'], item['name'], item['modifiedTime'])
-        parent_names = get_gdrive_parents(session.drive_service, item['parents'])
-        thisdoc.set_parents(item['parents'], parent_names)
-
-        print('%s \t %s \t %s ' % (item['id'], item['mimeType'], item['name']))  # item['id']))
-
-        if '.folder' in item['mimeType']:
-            continue        # don't process folders
-
-        if thisdoc.interesting():
-            interesting_files += 1
-            print('%s: \t %s' % (item['id'], item['name']))  # item['id']))
-            thisdoc.source_tags = tag_source(item)
-            # print("Source Tags are: %s" % thisdoc.source_tags)
-
-            txt = ''  # initialize the doc text holder
-            # TODO add more generic logic for any doc type
-            fileExtension = item['name'].split(".")[-1]
-            if fileExtension == 'csv':
-                # handle a CSV file
-                pass
-
-            elif fileExtension == "txt":
-                # print('do a txt file')
-                download_file(session.drive_service, item['id'], item['mimeType'], 'temp.txt')
-                tf = open('temp/temp.txt', 'r')
-                txt = tf.read()
-                tf.close()
-
-            elif fileExtension == 'docx':
-                # print('do a docx')
-                download_file(session.drive_service, item['id'], item['mimeType'], 'temp/' + item['name'])
-                txt = read_docx_text(item['name'])
-
-            elif 'google-apps.document' in item['mimeType']:
-                # print('Do a google Doc')
-                doc = session.doc_service.documents().get(documentId=item['id']).execute()
-                doc_content = doc['body']['content']
-                txt = read_structural_elements(doc_content)
-                print("Did Google Doc")
-
-            elif 'google-apps.spreadsheet' in item['mimeType']:
-                # todo add google sheet logic is same for docs and presentations?
-                # print('Do google Sheet')
-                pass
-
-            else:
-                print('unknown Doc Type')
-
-            # at this point we have the text from the document
-            # now extract keywords from doc name and content and
-            # append all to a keyword list
-            getKeywords = False         # TODO getKeywords is a flag to skip reading keywords due to API quotas
-            if txt and getKeywords:
-                thisdoc.content_tags = tag_content(txt)
-                # print("Content Taglist are: %s" % thisdoc.content_tags)
-
-            # TODO Add in ability to include user tags - may need rules on when to apply them
-            thisdoc.save()
-
-    print("%d interesting document(s)" % interesting_files)
-    result = {'return_code': '0', 'scan_count': f"{interesting_files}"}
-    return json.dumps(result, indent=4)
-
-
-def email_scanner():
-    """
-
-    :return:
-    """
-    print("In Email Scan")
-
-    if motivation() == 'getdocs':   # TODO figure out the motivation driver
-        session.resetpath()
-        session.shared_view = False
-        interesting = 0
-        interesting += scan_email_folder(session.path_id[0], recurse=True)
-
-        result = json.dumps({'return_code': 'Motivated', 'scan_count': interesting}, indent=4)
-    else:
-        result = json.dumps({'return_code': 'Not motivated', 'scan_count': '0'}, indent=4)
-
-    res = session.gmail_service.users().labels().list(userId='me').execute()
-    labels = res.get('labels', [])
-    print(json.dumps(labels))
-    return result
 
 
 def gdrive_scanner():

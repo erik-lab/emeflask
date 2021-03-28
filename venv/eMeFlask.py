@@ -35,7 +35,7 @@ def scandoc_handler(acct="NONE"):
 # Scan email Button Handler
 @app.route('/scanemail/', methods=['GET', 'POST', 'PUT'])
 def scanemail_handler(acct="NONE"):
-    return eme.email_scanner()
+    return eme.gmail_scanner()
 
 
 # doc list reader Handler
