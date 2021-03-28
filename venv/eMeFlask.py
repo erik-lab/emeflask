@@ -4,24 +4,19 @@ import eme
 app = Flask(__name__)
 # defining a route
 
+
 @app.route("/", methods=['GET', 'POST', 'PUT']) # decorator
 def index():
     varlist = eme.get_session_vars()
     return render_template('index.html', varlist=varlist)
 
 
-@app.route("/docs", methods=['GET', 'POST', 'PUT']) # decorator
+@app.route("/docs", methods=['GET', 'POST', 'PUT'])  # decorator
 def docs():
     # returning string
     varlist = eme.get_session_vars()
     # {'name' : session.name, 'dbstatus' : session.dbstatus, 'account' : session.account}
     return render_template('docTagger.html', varlist=varlist)
-
-# serving form web page
-# TODO Get rid of this endpoint
-@app.route("/form")
-def form():
-    return render_template('form.html')
 
 
 # Connect Button Handler
@@ -31,11 +26,24 @@ def connect_handler(acct="NONE"):
     return eme.connect_btn()
 
 
+# Scan document Button Handler
+@app.route('/scandocs/', methods=['GET', 'POST', 'PUT'])
+def scandoc_handler(acct="NONE"):
+    return eme.gdrive_scanner()
+
+
+# Scan email Button Handler
+@app.route('/scanemail/', methods=['GET', 'POST', 'PUT'])
+def scanemail_handler(acct="NONE"):
+    return eme.email_scanner()
+
+
 # doc list reader Handler
 # background process happening without any refreshing
 @app.route('/docreader/', methods=['GET', 'POST', 'PUT'])
 def doc_read_handler():
     return eme.doc_reader(shared=False)
+
 
 # doc list reader Handler for shared docs
 # background process happening without any refreshing
@@ -43,11 +51,12 @@ def doc_read_handler():
 def shared_read_handler():
     return eme.doc_reader(shared=True)
 
+
 # Tag list reader for docs
 # background process happening without any refreshing
 @app.route('/tagreader/', methods=['GET'])
 def tag_read_handler(docid='missing'):
-    docid = request.args.get('docid', type=str) # 'fubar',
+    docid = request.args.get('docid', type=str)
     print(f"doc id: {docid}")
     return eme.tag_reader(docid)
 
@@ -59,11 +68,8 @@ def event_handler():
     return eme.tag_reader(docid)
 
 
-
-
 def main():
     app.run(debug = True)
-
 
 
 if __name__ == '__main__':

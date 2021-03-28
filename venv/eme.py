@@ -21,12 +21,15 @@ from neo4j import GraphDatabase
 import os
 import sys
 from flask import Response
+# import pandas
+
 
 # GLOBALS for eme Module for now - specific to Google API access
 # If modifying these scopes, delete the file drive.pickle.
 SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly',
           'https://www.googleapis.com/auth/drive.readonly',
-          'https://www.googleapis.com/auth/documents.readonly']
+          'https://www.googleapis.com/auth/documents.readonly',
+          'https://www.googleapis.com/auth/gmail.readonly']
 DISCOVERY_DOC = 'https://docs.googleapis.com/$discovery/rest?version=v1'
 DOCUMENT_ID = '1ht6PMhI5JIcaQLqgsMBQhwOIIlHYr455'   # used for debugging and testing
 
@@ -51,60 +54,8 @@ def get_credentials(account):
     return credentials
 
 
-def retrieve_all_files(service, parent='root', filter=None, shared=False):
-    """Retrieve a list of File resources.
-
-    Args:
-      service: Drive API service instance.
-    Returns:
-      List of File resources.
-
-    """
-    print("in retrieve_all_files")
-    result = []
-    page_token = None
-    while True:
-        param = {}
-        if page_token:
-            param['pageToken'] = page_token
-        param['corpora'] = 'user'
-        param['fields'] = '*'       # TODO strip out unneeded fields
-
-        if shared:
-            param['q'] = "trashed = false and " + \
-                         "sharedWithMe"
-            param['includeItemsFromAllDrives'] = 'true'
-            param['supportsAllDrives'] = 'true'
-            param['orderBy'] = 'folder,name'
-            param['spaces'] = 'drive'
-        else:
-            param['q'] = f"trashed = false and '{parent}' in parents"
-            param['includeItemsFromAllDrives'] = 'false'
-            param['supportsAllDrives'] = 'true'
-            param['orderBy'] = 'folder,name'
-            param['spaces'] = 'drive'
-
-        try:
-            res = service.files()
-            try:
-                xfiles = res.list(**param).execute()
-            except:
-                print("Error with service.files() resource: %s" % res)
-                return
-        except:
-            print("Error with res.list() ")
-            return
-
-        result.extend(xfiles['files'])
-        page_token = xfiles.get('nextPageToken')
-        if not page_token:
-            break
-
-    return result
-
-
-def download_file(service, file_id, mimeType, filename):
-    if "google-apps" in mimeType:
+def download_file(service, file_id, mimetype, filename):
+    if "google-apps" in mimetype:
         return
     request = service.files().get_media(fileId=file_id)
     fh = io.FileIO(filename, 'wb')  # io.BytesIO()
@@ -175,16 +126,33 @@ def motivation():
     return 'getdocs'
 
 
-class eme_session:
+class Account:
+    def __init__(self, name, account_id, service, path_nm, path_id):
+        self.name = name
+        self.account_id = account_id
+        self.service = service
+        self.path_nm = path_nm
+        self.path_id = path_id
+
+
+class Eme_Session:
     def __init__(self, name='', account='', dbstatus='Not Connected', creds=None):
+        self.accounts = []      # populate with Account objects
         self.name = name
         self.account = account
         self.dbstatus = dbstatus
         self.creds = creds
         self.drive_service = None
         self.doc_service = None
+        self.gmail_service = None
         self.path_nm = ['/']
         self.path_id = ['root']
+        self.shared_view = False
+        # TODO convert account details to a list of account objects
+
+    def add_account(self, name, account_id, service, path_nm='', path_id=''):
+        acct = Account(name, account_id, service, path_nm, path_id)
+        self.accounts.append(acct)
 
     def setname(self, name):
         self.name = name
@@ -204,20 +172,44 @@ class eme_session:
     def setdoc(self, doc_service):
         self.doc_service = doc_service
 
+    def setgmail(self, gmail_service):
+        self.gmail_service = gmail_service
+
+    def resetpath(self):
+        self.path_nm = ['/']
+        self.path_id = ['root']
+
+    def add_path(self, folder_id, folder_name):
+        self.path_nm.append(folder_name)
+        self.path_id.append(folder_id)
+
+    def set_shared_view(self, shared_view):
+        self.shared_view = shared_view
+
     def __str__(self):
         return str(self.__class__) + ": " + str(self.__dict__)
 
-class eme_object:
-    def __init__(self, obj_source, obj_acct, obj_type, obj_id, obj_name, obj_mod):
+
+class Eme_Object:
+    def __init__(self, obj_source, obj_acct, obj_type, obj_id, obj_name, obj_mod, mimetype=None, parents=[], owner=None):
         self.source = obj_source
         self.type = obj_type
         self.id = obj_id
         self.name = obj_name
         self.modified = obj_mod     # TODO read up on how to create indexes on date properties
         self.account = obj_acct
+        self.owner = owner
+        self.mimeType = mimetype
+        self.parents = []
+        self.parent_ids = parents
         self.source_tags = []
         self.content_tags = []
         self.user_tags = []
+
+
+    def set_parents(self, ids, names):
+        self.parents = names
+        self.parent_ids = ids
 
     def interesting(self):
         # TODO interesting test needs to return a strength, not boolean
@@ -252,22 +244,34 @@ class eme_object:
 
     def save(self):
         # first step is to ensure the document and contextual objects are in place
-        objmerge= "merge (:Object {{id: '{0}', name: '{1}', last_modified: '{2}'}})"
-        sourcemerge= "merge (:Source {{name: '{0}'}})"
-        typemerge= "merge (:ObjectType {{name: '{0}'}})"
-        acctmerge= "merge (:Account {{name: '{0}'}})"
+        objmerge = "merge (:Object {{id: '{0}', name: '{1}', last_modified: '{2}'}})"
+        sourcemerge = "merge (:Source {{name: '{0}'}})"
+        typemerge = "merge (:ObjectType {{name: '{0}'}})"
+        acctmerge = "merge (:Account {{name: '{0}'}})"
+        parentmerge = "merge (:Parent {{name: '{0}'}})"
         emedb.run(objmerge.format(self.id, self.name, self.modified))
         emedb.run(sourcemerge.format(self.source))
         emedb.run(typemerge.format(self.type))
         emedb.run(acctmerge.format(self.account))
+        for parent in self.parents:
+            emedb.run(parentmerge.format(parent))
 
-        # Next step is to add the relationships to context objects
+        # Next step is to add the relationships to contextual objects
         relobjtype = "MATCH (o:Object),(ot:ObjectType) WHERE o.id = '{0}' AND ot.name = '{1}' merge (o)-[:is_a]->(ot)"
         relsource = "MATCH (o:Object),(s:Source) WHERE o.id = '{0}' AND s.name = '{1}' merge (o)-[:is_from]->(s)"
         relacct = "MATCH (o:Object),(a:Account) WHERE o.id ='{0}' AND a.name = '{1}' merge (o)-[:belongs_to]->(a)"
+        relparent = "MATCH (o:Object),(p:Parent) WHERE o.id ='{0}' AND p.name = '{1}' merge (o)-[:is_in]->(p)"
+        relparent_acct = "MATCH (p:Parent),(s:Source) WHERE p.name = '{0}' AND s.name = '{1}' \
+                            merge (p)-[:is_from]->(s)"
+        relparent_source = "MATCH (p:Parent),(a:Account) WHERE p.name = '{0}' AND a.name = '{1}' \
+                            merge (p)-[:belongs_to]->(a)"
         emedb.run(relsource.format(self.id, self.source))
         emedb.run(relobjtype.format(self.id, self.type))
         emedb.run(relacct.format(self.id, self.account))
+        for parent in self.parents:
+            emedb.run(relparent.format(self.id, parent))
+            emedb.run(relparent_acct.format(parent, self.account))
+            emedb.run(relparent_source.format(parent, self.source))
 
         # Next step is to add any new tags to the database and their relationship to the object
         # TODO - strip out meaningless words??
@@ -286,6 +290,7 @@ class eme_object:
                 emedb.run(tagmerge.format(tag))
                 emedb.run(tagrel.format(self.id, tag))
         # TODO probably should wrap the above in a try/except block
+
 
 class eme_graph:
     def __init__(self, uri, user, password):
@@ -310,21 +315,31 @@ class eme_graph:
                   "merge (o)-[:owns]->(a)"
             dbsession.run(rel)
         # TODO - figure out how to determine if there was an error - shouldn't be one, but...
-        if False:
-            raise ValueError("Owner or Account Objects are missing!")
-            return -1
-        else:
-            return True
 
 
-def tag_source(thedoc):
+def get_gdrive_parents(service, ids):
+    # for each of the IDs, get the document info and append name to the return list
+
+    plist = []
+    for pid in ids:
+        try:
+            parent = service.files().get(fileId=pid).execute()
+            plist.append(parent['name'])
+        except:
+            plist.append("No Parent")
+
+    return plist
+
+
+def tag_source(thisdoc):
     print("in tag_source")
 
     tlist = []
-    tlist.extend(re.split("[; ,._\-\%]", thedoc.get('name')))
-    tlist.append(thedoc['modifiedTime'])
-    tlist.append(thedoc['owners'][0].get('displayName', 'none'))
-    # TODO get parent folder name
+    tlist.extend(re.split("[; ,._\-\%]", thisdoc.name))
+    tlist.append(thisdoc.modified)
+    tlist.append(thisdoc.owner)
+    for tag in thisdoc.parents:
+        tlist.append(tag)
     # TODO get list of shared with people
 
     return tlist
@@ -347,6 +362,161 @@ def tag_content(text):
     return thelist
 
 
+def retrieve_Gdrive_files(service, parent='root', filter=None, shared=False):
+    """Retrieve a list of File resources.
+
+    Args:
+      service: Drive API service instance.
+    Returns:
+      List of File resources.
+      :param service:
+      :param parent:
+      :param filter:
+      :param shared:
+
+    """
+    print("in retrieve_all_files")
+    result = []
+    page_token = None
+    param = {'corpora': 'user', 'fields': '*'}
+
+    if shared:
+        if parent == 'root':
+            param['q'] = f"trashed = false and sharedWithMe"
+        else:
+            param['q'] = f"trashed = false and '{parent}' in parents"
+        param['includeItemsFromAllDrives'] = 'true'
+        param['supportsAllDrives'] = 'true'
+        param['orderBy'] = 'folder,name'
+        param['spaces'] = 'drive'
+    else:
+        param['q'] = f"trashed = false and '{parent}' in parents"
+        param['includeItemsFromAllDrives'] = 'false'
+        param['supportsAllDrives'] = 'true'
+        param['orderBy'] = 'folder,name'
+        param['spaces'] = 'drive'
+
+    while True:
+        if page_token:
+            param['pageToken'] = page_token
+        try:
+            res = service.files()
+            try:
+                xfiles = res.list(**param).execute()
+            except:
+                print("Error with retrieve_gdrive_files - service.files() resource: %s" % res)
+                raise
+        except:
+            print("Error with retrieve_gdrive_files res.list() ")
+            raise
+
+        result.extend(xfiles['files'])
+        page_token = xfiles.get('nextPageToken')
+        if not page_token:
+            break
+
+    return result
+
+
+def scan_drive_folder(folder_id, recurse=False):
+    """ Scan all docs in a folder and optionally recurse to child folders
+
+    get file list
+    for each file
+        if child folder and recurse
+            scan_folder (child)
+        else
+            scan_file(file_id)
+
+    TODO - need to implement folder history to avoid looping
+    :param folder_id:
+    :param recurse:
+    :return: int: count of the number of interesting docs scanned
+    """
+    global session
+    print(f"Scan_folder called: {folder_id}")
+    f = retrieve_Gdrive_files(session.drive_service, parent=folder_id, shared=session.shared_view)
+
+    interesting = 0
+    for item in f:
+        if '.folder' in item['mimeType']:
+            if recurse:
+                if folder_id != item['id']:            # avoid opening the same folder
+                    interest = scan_drive_folder(item['id'], recurse)
+                    interesting += interest
+            continue
+        else:
+            thisdoc = Eme_Object('Google Docs', 'Account #1', 'doc', item['id'], item['name'], item['modifiedTime'],
+                                 item['mimeType'], item.get('parents', ['its empty']), item['owners'][0].get('displayName', 'none'))
+                                 # item['mimeType'], item['parents'], item['owners'][0].get('displayName', 'none'))
+            thisdoc.parents = get_gdrive_parents(session.drive_service, thisdoc.parent_ids)
+            if scan_drive_doc(thisdoc):
+                interesting += 1
+            # print(f"ID; {item['id']}, \t {item['name']}")
+    return interesting
+
+
+def scan_drive_doc(thisdoc):
+    """ tag scanning for a document
+    :return: boolean if document is interesting
+    """
+    print(f"Scan Doc called: {thisdoc.name}")
+    global session
+
+    if thisdoc.interesting():
+        print('%s: \t %s' % (thisdoc.id, thisdoc.name))
+        thisdoc.source_tags = tag_source(thisdoc)
+        # print("Source Tags are: %s" % thisdoc.source_tags)
+
+        txt = ''  # initialize the doc text holder
+        # TODO add more generic logic for any doc type
+        ext = thisdoc.name.split(".")[-1]
+        if ext == 'csv':
+            # handle a CSV file
+            pass
+
+        elif ext == "txt":
+            # print('do a txt file')
+            download_file(session.drive_service, thisdoc.id, thisdoc.mimeType, 'temp/temp.txt')
+            tf = open('temp/temp.txt', 'r')
+            txt = tf.read()
+            tf.close()
+
+        elif ext == 'docx':
+            # print('do a docx')
+            download_file(session.drive_service, thisdoc.id, thisdoc.mimeType, 'temp/' + thisdoc.name)
+            txt = read_docx_text('temp/' + thisdoc.name)
+
+        elif 'google-apps.document' in thisdoc.mimeType:
+            # print('Do a google Doc')
+            doc = session.doc_service.documents().get(documentId=thisdoc.id).execute()
+            doc_content = doc['body']['content']
+            txt = read_structural_elements(doc_content)
+            print("Did Google Doc")
+
+        elif 'google-apps.spreadsheet' in thisdoc.mimeType:
+            # todo add google sheet logic is same for docs and presentations?
+            # print('Do google Sheet')
+            pass
+
+        else:
+            print('unknown Doc Type')
+
+        # at this point we have the text from the document
+        # now extract keywords from doc name and content and
+        # append all to a keyword list
+        getKeywords = False         # TODO getKeywords is a flag to skip reading keywords due to API quotas
+        if txt and getKeywords:
+            thisdoc.content_tags = tag_content(txt)
+            # print("Content Taglist are: %s" % thisdoc.content_tags)
+
+        # TODO Add in ability to include user tags - may need rules on when to apply them
+        thisdoc.save()
+        return True
+    else:
+        return False
+
+
 def doc_getter():
     """
     # TODO logic for shared documents and other parameters
@@ -366,13 +536,20 @@ def doc_getter():
     testDocCount = 30
     interesting_files = 0
 
-    f = retrieve_all_files(session.drive_service)
+    f = retrieve_Gdrive_files(session.drive_service, parent='1lVPugx39Y7O3wxrqr-1ljky8FYHr2DZa')
     for item in f:
         if testDocCount == 0:
             break
         testDocCount -= 1
-        thisdoc = eme_object('Google Docs', 'Account #1', 'doc', item['id'], item['name'], item['modifiedTime'])
+
+        thisdoc = Eme_Object('Google Docs', 'Account #1', 'doc', item['id'], item['name'], item['modifiedTime'])
+        parent_names = get_gdrive_parents(session.drive_service, item['parents'])
+        thisdoc.set_parents(item['parents'], parent_names)
+
         print('%s \t %s \t %s ' % (item['id'], item['mimeType'], item['name']))  # item['id']))
+
+        if '.folder' in item['mimeType']:
+            continue        # don't process folders
 
         if thisdoc.interesting():
             interesting_files += 1
@@ -389,29 +566,27 @@ def doc_getter():
 
             elif fileExtension == "txt":
                 # print('do a txt file')
-                download_file(session.doc_service, item['id'], item['mimeType'], 'temp.txt')
-                tf = open('temp.txt', 'r')
+                download_file(session.drive_service, item['id'], item['mimeType'], 'temp.txt')
+                tf = open('temp/temp.txt', 'r')
                 txt = tf.read()
                 tf.close()
 
             elif fileExtension == 'docx':
                 # print('do a docx')
-                download_file(session.drive_service, item['id'], item['mimeType'], item['name'])
+                download_file(session.drive_service, item['id'], item['mimeType'], 'temp/' + item['name'])
                 txt = read_docx_text(item['name'])
 
             elif 'google-apps.document' in item['mimeType']:
                 # print('Do a google Doc')
-                doc = session.drive_service.documents().get(documentId=item['id']).execute()
-                doc_content = doc.get('body').get('content')
+                doc = session.doc_service.documents().get(documentId=item['id']).execute()
+                doc_content = doc['body']['content']
                 txt = read_structural_elements(doc_content)
+                print("Did Google Doc")
 
-            elif 'google-apps.spreadsheet' in item['mimeType']:  # todo add google sheet logic is same for docs and presentations?
+            elif 'google-apps.spreadsheet' in item['mimeType']:
+                # todo add google sheet logic is same for docs and presentations?
                 # print('Do google Sheet')
                 pass
-
-            elif '.folder' in item['mimeType']:
-                pass
-                # print("Folder: %s" % item['name'])
 
             else:
                 print('unknown Doc Type')
@@ -419,51 +594,119 @@ def doc_getter():
             # at this point we have the text from the document
             # now extract keywords from doc name and content and
             # append all to a keyword list
-            getKeywords = False         # TODO getKeywords is a flag to skip reading keywords due to quotas
+            getKeywords = False         # TODO getKeywords is a flag to skip reading keywords due to API quotas
             if txt and getKeywords:
                 thisdoc.content_tags = tag_content(txt)
                 # print("Content Taglist are: %s" % thisdoc.content_tags)
 
             # TODO Add in ability to include user tags - may need rules on when to apply them
-
             thisdoc.save()
+
     print("%d interesting document(s)" % interesting_files)
+    result = {'return_code': '0', 'scan_count': f"{interesting_files}"}
+    return json.dumps(result, indent=4)
 
 
-def ememain():
-    # Startup - Open the database
-    emedb.confirm_required_objects()
+def email_scanner():
+    """
 
+    :return:
+    """
+    print("In Email Scan")
+
+    if motivation() == 'getdocs':   # TODO figure out the motivation driver
+        session.resetpath()
+        session.shared_view = False
+        interesting = 0
+        interesting += scan_email_folder(session.path_id[0], recurse=True)
+
+        result = json.dumps({'return_code': 'Motivated', 'scan_count': interesting}, indent=4)
+    else:
+        result = json.dumps({'return_code': 'Not motivated', 'scan_count': '0'}, indent=4)
+
+    res = session.gmail_service.users().labels().list(userId='me').execute()
+    labels = res.get('labels', [])
+    print(json.dumps(labels))
+    return result
+
+
+def gdrive_scanner():
+    """Scan all documents request from the UI
+
+    :return: int - count of documents scanned
+    """
     if motivation() == 'getdocs':
-        doc_getter()
+        session.resetpath()
+        session.shared_view = False
+        interesting = 0
+        interesting += scan_drive_folder(session.path_id[0], recurse=True)
+        session.shared_view = True
+        interesting += scan_drive_folder(session.path_id[0], recurse=True)
 
-    # Leaving - Shut down the database
-    emedb.close()
+        result = json.dumps({'return_code': 'Motivated', 'scan_count': interesting}, indent=4)
+    else:
+        result = json.dumps({'return_code': 'Not motivated', 'scan_count': '0'}, indent=4)
+    return result
 
-# UI CONTROLS
 
 def get_session_vars():
     # TODO modify to pull values from the database
     global session
     return {'name': session.name, 'dbstatus': session.dbstatus, 'account': session.account}
 
+
 def connect_btn():
     print("in connect_btn")
-
     global session
+
+    # Connect to 3 services - GDrive, Gdocs, Gmail
+    # and also returns Account owner information
+    # TODO refactor this into selarate connect modules
+
+    # GDrive Service
     accountID = 1       # TODO get this from the database
     session.setcreds(get_credentials(accountID))
     service = build('drive', 'v3', credentials=session.creds)
     http = session.creds.authorize(Http())
+    session.setdrive(service)
+
+    # GDocs Service
     docs_service = discovery.build(
         'docs', 'v1', http=http, discoveryServiceUrl=DISCOVERY_DOC)
-
-    session.setdrive(service)
     session.setdoc(docs_service)
+
+    # GMail Service
+    # creds = None
+    # The file gmail.pickle stores the user's access and refresh tokens, and is
+    # created automatically when the authorization flow completes for the first
+    # time.
+    pkl = None
+    if os.path.exists('gmail.pickle'):
+        with open('gmail.pickle', 'rb') as token:
+            pkl = pickle.load(token)
+    # If there are no (valid) credentials available, let the user log in.
+    if not pkl or not pkl.valid:
+        if pkl and pkl.expired and pkl.refresh_token:
+            pkl.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'gmailCredentials.json', SCOPES)
+            pkl = flow.run_local_server(port=0)
+        # Save the pickle for the next run
+        with open('gmail.pickle', 'wb') as token:
+            pickle.dump(pkl, token)
+
+    gmail_service = build('gmail', 'v1', credentials=pkl)
+    # Call the Gmail API
+    results = gmail_service.users().labels().list(userId='me').execute()
+    session.setgmail(gmail_service)
+    labels = results.get('labels', [])
+    # print(f"labels: {json.dumps(labels, indent=4)}")
+
+    # Account Owner Information
     session.setname('Erik')                 # TODO get this from the database
     session.setacct('edahl9000@gmail.com')  # TODO get this from the database
     varlist = get_session_vars()
-    # doc_reader()
 
     return json.dumps(varlist, indent=4)
     # jsonify(status=session.dbstatus, account=session.account, name=session.name)
@@ -476,45 +719,38 @@ def doc_reader(shared=False):
                 {'id': '2', 'name': 'file #2', 'type': 'type 3'}]       # debugging
     filelist = []   # debugging
     print("in doc_reader")      # TODO doc_reader remove this
-
     global session
-    print("path: %s" % session.path_id)
-    files = []
+    session.resetpath()         # set back to root (shared will have to test for this)
 
     if shared:
+        session.set_shared_view(True)
         try:
-            files = retrieve_all_files(session.drive_service, shared=shared)
+            files = retrieve_Gdrive_files(session.drive_service, parent=session.path_id[0], shared=shared)
         except:
             print("Doc_Reader retrieve error - for shared Docs - ending")
             return
     else:
+        session.set_shared_view(False)
         try:
-            dir = session.path_id[len(session.path_id)-1]
-            files = retrieve_all_files(session.drive_service, dir, shared=shared)
+            dir = session.path_id[len(session.path_id)-1]       # TODO doc_reader will always be at root
+            files = retrieve_Gdrive_files(session.drive_service, parent=dir, shared=shared)
         except:
             print("Doc_Reader retrieve error - for My Docs - ending")
             return
-    print("File Count: %s" % len(files))     # TODO doc_reader remove this
+    if files:
+        print("File Count: %s" % len(files))    # TODO doc_reader remove this
 
     if files:
-        testDocCount = 30               # TODO - take this out
+        testDocCount = 30                       # TODO - take this out
         for item in files:
             if testDocCount == 0:
                 break
             testDocCount -= 1
             filelist.append({'id': item['id'], 'name': item['name'], 'mimeType': item['mimeType'],
-                         'parents': item.get('parents', 'No Parent')})
+                            'parents': item.get('parents', ['No Parent'])})
+        # print(f"filelist: {json.dumps(filelist, indent=2)}")      # TODO Remove this
 
     return json.dumps(filelist, indent=4)
-
-def get_tags(tx):
-    result = tx.run(
-            f"match(o:Object {{id: '1C91jeACfcochRsNGFO2h7Jw8shB6r-lsU9yE9SbSH_Q'}})--(t:Tag) return t.name as tag, t.name as freq")
-    tags = []
-    for record in result:
-        tags.append(dict(record))
-    #     print("dict(record) %s" % dict(record))
-    return tags
 
 
 def tag_reader(objid=str):
@@ -547,12 +783,14 @@ def tag_reader(objid=str):
     # return json.dumps(result, indent=4)
     return Response(json.dumps(tags), mimetype="application/json")
 
+
 # #######  GLOBAL DATABASE CONNECTION
 try:
-    emedb = eme_graph("bolt://localhost:7687", "eme", "eme")  # TODO put the database creds in the database
+    emedb = eme_graph("bolt://localhost:7687", "eme", "eme")  # TODO put the database creds in encrypted file
     print("************** Connected to the eMe database")
+    emedb.confirm_required_objects()
 
-    ###  SETUP SESSION OBJECT
-    session = eme_session('', 'Not Connected', 'Connected', None)
+    # ##  SETUP SESSION OBJECT
+    session = Eme_Session('', 'Not Connected', 'Connected', None)
 except:
     sys.exit("************** Error connecting to the eMe database")

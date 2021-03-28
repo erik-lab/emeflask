@@ -151,3 +151,34 @@ function do_connect(e) {
 
     return false;
 };
+
+function doc_scandocs(e) {
+    // first wait for the connection to complete then request and scan root files
+    // TODO handle error condition
+    console.log("doc scan started");
+
+    e.preventDefault();
+    console.log("/scan Request");
+    $.getJSON('/scandocs/',
+        function(data) {
+            console.log("/Scan Results");
+            console.log("return_code: ", data.return_code);
+            console.log("scan_count: ", data.scan_count);
+            }
+    );
+    return false;
+};
+function doc_scanemail(e) {
+    // first wait for the connection to complete then request and scan root files
+    console.log("email scan started");
+
+    e.preventDefault();
+    $.getJSON('/scanemail/',
+        function(data) {
+            console.log("/Scan Results");
+            console.log("return_code: ", data.return_code);
+            console.log("scan_count: ", data.scan_count);
+            }
+    );
+    return false;
+};

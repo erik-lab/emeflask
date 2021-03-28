@@ -35,7 +35,12 @@
          $('a#shareddocs').click(function(e) {
             doc_reader(true);
             $("center#docTitle").html("<b>Shared Documents</b>");
-
+        })
+         $('a#scanddocs').click(function(e) {
+            doc_scandocs(e);      //  TODO Need flags to determine what I am scanning
+        })
+         $('a#scanemail').click(function(e) {
+            doc_scanemail(e);      //  TODO Need flags to determine what I am scanning
         })
         $('a#eventlink').click(function(e) {
             get_event(e);
@@ -75,6 +80,9 @@
             <hr id="titlehr" style="height:4px"></hr>
             <a href="#file" id="mydocs" class="isDisabled"><i class="fa fa-fw fa-file"></i> My Docs</a><br>
             <a href="#file" id="shareddocs" class="isDisabled"><i class="fa fa-fw fa-file"></i> Shared Docs</a><br>
+            <hr>
+            <a href="#file" id="scanddocs" class="isDisabled"><i class="fa fa-fw fa-file"></i> Scan Google Docs</a><br>
+            <a href="#file" id="scanemail" class="isDisabled"><i class="fa fa-fw fa-file"></i> Scan GMail Docs</a><br>
             <hr>
             <a href="#file" id="tagLink" class="isDisabled"><i class="fa fa-fw fa-tag"></i> Tags<br>
             <hr>
