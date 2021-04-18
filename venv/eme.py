@@ -22,6 +22,7 @@ import os
 import sys
 from flask import Response
 import base64
+
 # import pandas
 
 
@@ -32,7 +33,7 @@ SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly',
           'https://www.googleapis.com/auth/documents.readonly',
           'https://www.googleapis.com/auth/gmail.readonly']
 DISCOVERY_DOC = 'https://docs.googleapis.com/$discovery/rest?version=v1'
-DOCUMENT_ID = '1ht6PMhI5JIcaQLqgsMBQhwOIIlHYr455'   # used for debugging and testing
+DOCUMENT_ID = '1ht6PMhI5JIcaQLqgsMBQhwOIIlHYr455'  # used for debugging and testing
 
 
 def get_credentials(account):
@@ -47,7 +48,7 @@ def get_credentials(account):
     print("in Get Credentials")
     store = file.Storage('token.json')
     credentials = store.get()
-    account += 1    # debugging
+    account += 1  # debugging
 
     if not credentials or credentials.invalid:
         flow = client.flow_from_clientsecrets('credentials.json', SCOPES)
@@ -161,7 +162,7 @@ class Account:
 
 class Eme_Session:
     def __init__(self, name='', account='', dbstatus='Not Connected', creds=None):
-        self.accounts = []      # populate with Account objects
+        self.accounts = []  # populate with Account objects
         self.name = name
         self.account = account
         self.dbstatus = dbstatus
@@ -215,13 +216,14 @@ class Eme_Session:
 
 
 class Eme_Object:
-    def __init__(self, obj_source, obj_acct, obj_type, obj_id, obj_name, obj_mod, mimetype=None, parents=[], owner=None):
+    def __init__(self, obj_source, obj_acct, obj_type, obj_id, obj_name, obj_mod, mimetype=None, parents=[],
+                 owner=None):
         self.source = obj_source
         self.type = obj_type
         self.id = obj_id
-        self.obj_source_id = None   # this is used for the gmail message id
+        self.obj_source_id = None  # this is used for the gmail message id
         self.name = obj_name
-        self.modified = obj_mod     # TODO read up on how to create indexes on date properties
+        self.modified = obj_mod  # TODO read up on how to create indexes on date properties
         self.account = obj_acct
         self.owner = owner
         self.mimeType = mimetype
@@ -230,7 +232,6 @@ class Eme_Object:
         self.source_tags = []
         self.content_tags = []
         self.user_tags = []
-
 
     def set_parents(self, ids, names):
         self.parents = names
@@ -269,12 +270,13 @@ class Eme_Object:
 
     def save(self):
         # first step is to ensure the document and contextual objects are in place
-        objmerge = "merge (:Object {{id: '{0}', name: '{1}', last_modified: '{2}'}})"
+        objmerge = "merge (:Object {{id: '{0}', name: '{1}', last_modified: '{2}', \
+                   obj_source_id: '{3}', mimeType: '{4}'}})"
         sourcemerge = "merge (:Source {{name: '{0}'}})"
         typemerge = "merge (:ObjectType {{name: '{0}'}})"
         acctmerge = "merge (:Account {{name: '{0}'}})"
         parentmerge = "merge (:Parent {{name: '{0}'}})"
-        emedb.run(objmerge.format(self.id, self.name, self.modified))
+        emedb.run(objmerge.format(self.id, self.name, self.modified, self.obj_source_id, self.mimeType))
         emedb.run(sourcemerge.format(self.source))
         emedb.run(typemerge.format(self.type))
         emedb.run(acctmerge.format(self.account))
@@ -286,13 +288,19 @@ class Eme_Object:
         relsource = "MATCH (o:Object),(s:Source) WHERE o.id = '{0}' AND s.name = '{1}' merge (o)-[:is_from]->(s)"
         relacct = "MATCH (o:Object),(a:Account) WHERE o.id ='{0}' AND a.name = '{1}' merge (o)-[:belongs_to]->(a)"
         relparent = "MATCH (o:Object),(p:Parent) WHERE o.id ='{0}' AND p.name = '{1}' merge (o)-[:is_in]->(p)"
-        relparent_acct = "MATCH (p:Parent),(s:Source) WHERE p.name = '{0}' AND s.name = '{1}' \
-                            merge (p)-[:is_from]->(s)"
-        relparent_source = "MATCH (p:Parent),(a:Account) WHERE p.name = '{0}' AND a.name = '{1}' \
-                            merge (p)-[:belongs_to]->(a)"
+        relparent_source = "MATCH (p:Parent) WHERE p.name = '{0}' \
+                          MATCH (s:Source) WHERE s.name = '{1}' \
+                          MERGE (p)-[:is_from]->(s)"
+        relparent_acct = "MATCH (p:Parent) WHERE p.name = '{0}' " \
+                         "MATCH (a:Account) WHERE a.name = '{1}' " \
+                         "MERGE (p)-[:belongs_to]->(a)"
+        relacct_source = "MATCH (a:Account) WHERE a.name = '{0}' " \
+                         "MATCH (s:Source) WHERE s.name = '{1}' " \
+                         "MERGE (a)-[:owns]->(s)"
         emedb.run(relsource.format(self.id, self.source))
         emedb.run(relobjtype.format(self.id, self.type))
         emedb.run(relacct.format(self.id, self.account))
+        emedb.run(relacct_source.format(self.account, self.source))
         for parent in self.parents:
             emedb.run(relparent.format(self.id, parent))
             emedb.run(relparent_acct.format(parent, self.account))
@@ -303,15 +311,15 @@ class Eme_Object:
         tagmerge = "merge (:Tag {{name: '{0}'}})"
         tagrel = "MATCH (o:Object),(t:Tag) WHERE o.id = '{0}' AND t.name = '{1}' merge (o)-[:has_tag]->(t)"
         for tag in self.source_tags:
-            if tag:             #  skip empty values
+            if tag:  # skip empty values
                 emedb.run(tagmerge.format(tag))
                 emedb.run(tagrel.format(self.id, tag))
         for tag in self.content_tags:
-            if tag:             # skip empty values
+            if tag:  # skip empty values
                 emedb.run(tagmerge.format(tag))
                 emedb.run(tagrel.format(self.id, tag))
         for tag in self.user_tags:
-            if tag:             # skip empty values
+            if tag:  # skip empty values
                 emedb.run(tagmerge.format(tag))
                 emedb.run(tagrel.format(self.id, tag))
         # TODO probably should wrap the above in a try/except block
@@ -332,6 +340,7 @@ class eme_graph:
         return db_result
 
     def confirm_required_objects(self):
+        # TODO figure out where owner and accounts come from
         with self.driver.session() as dbsession:
             dbsession.run("merge (n:EME_Owner {name: 'Erik Dahl', startDate: '01/30/2021'})")
             dbsession.run("merge (a:Account {name: 'Account #1', startDate: '01/31/2021', creds: ''}) ")
@@ -340,6 +349,79 @@ class eme_graph:
                   "merge (o)-[:owns]->(a)"
             dbsession.run(rel)
         # TODO - figure out how to determine if there was an error - shouldn't be one, but...
+
+
+def finder(viewtype):
+    """finder - call from UI to populate the list of files using a specific view type
+
+    :param: viewtype: enum type of view to use
+    :return: json list of documents to be rendered
+    """
+    print(f"in eme.finder as {viewtype}")
+
+    if False:
+        result = json.dumps([
+            {"acct": {"name": "Account #1"}, "source": {"name": "Gmail Doc"}, "parent": {"name": "UNREAD"},
+             "doc": {"type": "node", "id": "156", "labels": ["Object"],
+                     "properties": {"name": "Photo #1 Feb 28, 12 29 58 PM.jpg", "mimeType": "image/jpeg",
+                                    "id": "ANGjdJ_i7KPA8U6L5aGDLbHo9xsBW-3pZYSKpLRucLLrgvhZBN5AMA9-ogdlawWg47CpN5BMDXsoSghN35L7hQm9LVp_3Nai7ZgZLLipIfIslvMNAblee1d952ervADvmaXGsq1-yDMrkz7kt6pKlJ4tYZg62VV8t-NNIpBcDsnVFm6uftdNBdju_Kxai2WwdNPMleLuyikrspR91iuyud7_3GWBOttjuAPS342XYJVI2HlSmBkMh5F__M1Yk1wTzmWr7bFgmbonITjfcFTp_swAI_cMgYD6JwLg08qPi5Z8ZhsYktueY7f_fTd1TlX0giUCYfDlp0fgXFzd7PNH2g-WVE78IgYD_cEE8wIyH1h1ghXc74P0wAUeuqLTVdqrfEmhqjDi4O3ZynZ3DXSR",
+                                    "last_modified": "Mon, 22 Mar 2021 04:14:37 -0700",
+                                    "obj_source_id": "17859a4d3ea6ddd4"}}},
+            {"acct": {"name": "Account #1"}, "source": {"name": "Gmail Doc"}, "parent": {"name": "test Folder"},
+             "doc": {"type": "node", "id": "173", "labels": ["Object"],
+                     "properties": {"name": "Photo #2 Feb 28, 12 29 58 PM.jpg", "mimeType": "image/jpeg",
+                                    "id": "ANGjdJ-PPSbB0rBrP59zkmhLRZRozFyaltK6Zy1gH8hjXiYKe6CpGPtN8A-hrFHODliSJC8OqMgXLZ1RRKpev3sMqCmzFkF1IDus2F6ZBDt_uqi5w3JaNOaeFOZu-LxZKLR683lmajNI33n2ZEWYTiJamZeKpKt3NFR0ouVJS8hHBSulnr2CmhnDktB8fOO9TWxW55JUbGSk4CancrBlb-sJSOpQ5Dkmv63F1mbydxXgpi44The5rMaIHXbtl3k1wfVg7xgvMt81UD68wV7l2aOXE9qTj8e7D-EUnFxJSKgawk_N8D2a71B5-DXS8kbY9Nq83ktfMEXRzyAZIDRvu9-uFVbENwidK4S0cdcjqzzAevvyXB1VhhoPJRL-H3Nv_DzVx_i0YDtuVf-HegRD",
+                                    "last_modified": "Sun, 7 Mar 2021 17:28:10 +0000",
+                                    "obj_source_id": "1780dbb70a624ae7"}}},
+            {"acct": {"name": "Account #1"}, "source": {"name": "Gmail Doc"}, "parent": {"name": "test Folder"},
+             "doc": {"type": "node", "id": "173", "labels": ["Object"],
+                     "properties": {"name": "Photo #3 Feb 28, 12 29 58 PM.jpg", "mimeType": "image/jpeg",
+                                    "id": "ANGjdJ-PPSbB0rBrP59zkmhLRZRozFyaltK6Zy1gH8hjXiYKe6CpGPtN8A-hrFHODliSJC8OqMgXLZ1RRKpev3sMqCmzFkF1IDus2F6ZBDt_uqi5w3JaNOaeFOZu-LxZKLR683lmajNI33n2ZEWYTiJamZeKpKt3NFR0ouVJS8hHBSulnr2CmhnDktB8fOO9TWxW55JUbGSk4CancrBlb-sJSOpQ5Dkmv63F1mbydxXgpi44The5rMaIHXbtl3k1wfVg7xgvMt81UD68wV7l2aOXE9qTj8e7D-EUnFxJSKgawk_N8D2a71B5-DXS8kbY9Nq83ktfMEXRzyAZIDRvu9-uFVbENwidK4S0cdcjqzzAevvyXB1VhhoPJRL-H3Nv_DzVx_i0YDtuVf-HegRD",
+                                    "last_modified": "Sun, 7 Mar 2021 17:28:10 +0000",
+                                    "obj_source_id": "1780dbb70a624ae7"}}},
+            {"acct": {"name": "Account #1"}, "source": {"name": "Gmail Doc"}, "parent": {"name": "test Folder"},
+             "doc": {"type": "node", "id": "173", "labels": ["Object"],
+                     "properties": {"name": "Photo #4 Feb 28, 12 29 58 PM.jpg", "mimeType": "image/jpeg",
+                                    "id": "ANGjdJ-PPSbB0rBrP59zkmhLRZRozFyaltK6Zy1gH8hjXiYKe6CpGPtN8A-hrFHODliSJC8OqMgXLZ1RRKpev3sMqCmzFkF1IDus2F6ZBDt_uqi5w3JaNOaeFOZu-LxZKLR683lmajNI33n2ZEWYTiJamZeKpKt3NFR0ouVJS8hHBSulnr2CmhnDktB8fOO9TWxW55JUbGSk4CancrBlb-sJSOpQ5Dkmv63F1mbydxXgpi44The5rMaIHXbtl3k1wfVg7xgvMt81UD68wV7l2aOXE9qTj8e7D-EUnFxJSKgawk_N8D2a71B5-DXS8kbY9Nq83ktfMEXRzyAZIDRvu9-uFVbENwidK4S0cdcjqzzAevvyXB1VhhoPJRL-H3Nv_DzVx_i0YDtuVf-HegRD",
+                                    "last_modified": "Sun, 7 Mar 2021 17:28:10 +0000",
+                                    "obj_source_id": "1780dbb70a624ae7"}}}
+        ], indent=4)
+    else:
+        # docfind = "call apoc.export.json.query(' \
+        #             MATCH (a:Account)--(s:Source)--(p:Parent)--(o:Object) \
+        #             with a as acct, s as source, p as parent, collect(o) as doc \
+        #             RETURN acct {.name}, source {.name}, parent {.name}, doc {.*} \
+        #             ORDER BY acct {.name}, source {.name}, parent {.name}, doc {.name}', \
+        #             null, {stream: true, jsonFormat: 'JSON_LINES'})"
+
+        # docfind = "MATCH (a:Account)--(s:Source)--(p:Parent)--(o:Object) \
+        #             with a as acct, s as source, p as parent, collect(o) as doc \
+        #             RETURN acct {.name}, source {.name}, parent {.name}, doc {.*} \
+        #             ORDER BY acct {.name}, source {.name}, parent {.name}, doc {.name} "
+        #
+        docfind = "MATCH (a:Account)--(s:Source)--(p:Parent)--(o:Object) \
+                    with a as acct, s as source, p as parent, o as doc \
+                    RETURN acct {.name}, source {.name}, parent {.name}, doc {.*} \
+                    ORDER BY acct {.name}, source {.name}, parent {.name}, doc {.name} "
+
+        # docfind = "MATCH (a:Account)--(s:Source)--(p:Parent)--(o:Object) with a as acct, s as source, p as parent, collect(o) as doc RETURN acct {.name}, source {.name}, parent {.name}, doc {.*} ORDER BY acct {.name}, source {.name}, parent {.name}, doc {.name} "
+
+        try:
+            # result = emedb.run(docfind)
+            with emedb.driver.session() as db:
+                result = db.read_transaction(lambda tx: list(tx.run(docfind)))
+        except:
+            print("Bad shit")
+            raise
+
+        # print(f"Result: {result}")
+        docs = []
+        for record in result:
+            docs.append(dict(record))
+            pass
+            # print("dict(record) %s" % dict(record))
+
+    return Response(json.dumps(docs), mimetype="application/json")
 
 
 def get_gmail_parents(service, ids):
@@ -412,7 +494,7 @@ def scan_gmail_doc(service, thisdoc):
     print(f"Email Scan Doc called: {thisdoc.name}")
     global session
 
-    if thisdoc.interesting():
+    if thisdoc.interesting() or True:
         thisdoc.source_tags = tag_source(thisdoc)
         # print("Source Tags are: %s" % thisdoc.source_tags)
 
@@ -449,7 +531,7 @@ def scan_gmail_doc(service, thisdoc):
         # at this point we have the text from the document
         # now extract keywords from doc name and content and
         # append all to a keyword list
-        getKeywords = False         # TODO getKeywords is a flag to skip reading keywords due to API quotas
+        getKeywords = False  # TODO getKeywords is a flag to skip reading keywords due to API quotas
         if txt and getKeywords:
             thisdoc.content_tags = tag_content(txt)
             # print("Content Taglist are: %s" % thisdoc.content_tags)
@@ -518,7 +600,7 @@ def gmail_scanner():
     print("In Gmail Scan")
     interesting = 0
 
-    if motivation() == 'getdocs':   # TODO figure out the motivation driver
+    if motivation() == 'getdocs':  # TODO figure out the motivation driver
         interesting += scan_gmail_attachments(session.gmail_service)
         result = json.dumps({'return_code': 'Motivated', 'scan_count': interesting}, indent=4)
     else:
@@ -529,7 +611,7 @@ def gmail_scanner():
     return result
 
 
-def retrieve_Gdrive_files(service, parent='root', filter=None, shared=False):
+def retrieve_Gdrive_files(service, parent='root', filefilter=None, shared=False):
     """Retrieve a list of File resources.
 
     Args:
@@ -538,7 +620,7 @@ def retrieve_Gdrive_files(service, parent='root', filter=None, shared=False):
       List of File resources.
       :param service:
       :param parent:
-      :param filter:
+      :param filefilter:
       :param shared:
 
     """
@@ -608,14 +690,15 @@ def scan_drive_folder(folder_id, recurse=False):
     for item in f:
         if '.folder' in item['mimeType']:
             if recurse:
-                if folder_id != item['id']:            # avoid opening the same folder
+                if folder_id != item['id']:  # avoid opening the same folder
                     interest = scan_drive_folder(item['id'], recurse)
                     interesting += interest
             continue
         else:
             thisdoc = Eme_Object('Google Docs', 'Account #1', 'doc', item['id'], item['name'], item['modifiedTime'],
-                                 item['mimeType'], item.get('parents', ['its empty']), item['owners'][0].get('displayName', 'none'))
-                                 # item['mimeType'], item['parents'], item['owners'][0].get('displayName', 'none'))
+                                 item['mimeType'], item.get('parents', ['its empty']),
+                                 item['owners'][0].get('displayName', 'none'))
+            # item['mimeType'], item['parents'], item['owners'][0].get('displayName', 'none'))
             thisdoc.parents = get_gdrive_parents(session.drive_service, thisdoc.parent_ids)
             if scan_drive_doc(thisdoc):
                 interesting += 1
@@ -672,7 +755,7 @@ def scan_drive_doc(thisdoc):
         # at this point we have the text from the document
         # now extract keywords from doc name and content and
         # append all to a keyword list
-        getKeywords = False         # TODO getKeywords is a flag to skip reading keywords due to API quotas
+        getKeywords = False  # TODO getKeywords is a flag to skip reading keywords due to API quotas
         if txt and getKeywords:
             thisdoc.content_tags = tag_content(txt)
             # print("Content Taglist are: %s" % thisdoc.content_tags)
@@ -687,6 +770,7 @@ def scan_drive_doc(thisdoc):
 def gdrive_scanner():
     """Scan all documents request from the UI
 
+    TODO: add shared flag to the object nodes
     :return: int - count of documents scanned
     """
     if motivation() == 'getdocs':
@@ -718,7 +802,7 @@ def connect_btn():
     # TODO refactor this into selarate connect modules
 
     # GDrive Service
-    accountID = 1       # TODO get this from the database
+    accountID = 1  # TODO get this from the database
     session.setcreds(get_credentials(accountID))
     service = build('drive', 'v3', credentials=session.creds)
     http = session.creds.authorize(Http())
@@ -758,7 +842,7 @@ def connect_btn():
     # print(f"labels: {json.dumps(labels, indent=4)}")
 
     # Account Owner Information
-    session.setname('Erik')                 # TODO get this from the database
+    session.setname('Erik')  # TODO get this from the database
     session.setacct('edahl9000@gmail.com')  # TODO get this from the database
     varlist = get_session_vars()
 
@@ -770,11 +854,11 @@ def connect_btn():
 def doc_reader(shared=False):
     # read the list of documents from the current directory settings
     filelist = [{'id': '1', 'name': 'file #1', 'type': 'third file'},
-                {'id': '2', 'name': 'file #2', 'type': 'type 3'}]       # debugging
-    filelist = []   # debugging
-    print("in doc_reader")      # TODO doc_reader remove this
+                {'id': '2', 'name': 'file #2', 'type': 'type 3'}]  # debugging
+    filelist = []  # debugging
+    print("in doc_reader")  # TODO doc_reader remove this
     global session
-    session.resetpath()         # set back to root (shared will have to test for this)
+    session.resetpath()  # set back to root (shared will have to test for this)
 
     if shared:
         session.set_shared_view(True)
@@ -786,22 +870,22 @@ def doc_reader(shared=False):
     else:
         session.set_shared_view(False)
         try:
-            dir = session.path_id[len(session.path_id)-1]       # TODO doc_reader will always be at root
+            dir = session.path_id[len(session.path_id) - 1]  # TODO doc_reader will always be at root
             files = retrieve_Gdrive_files(session.drive_service, parent=dir, shared=shared)
         except:
             print("Doc_Reader retrieve error - for My Docs - ending")
             return
     if files:
-        print("File Count: %s" % len(files))    # TODO doc_reader remove this
+        print("File Count: %s" % len(files))  # TODO doc_reader remove this
 
     if files:
-        testDocCount = 30                       # TODO - take this out
+        testDocCount = 30  # TODO - take this out
         for item in files:
             if testDocCount == 0:
                 break
             testDocCount -= 1
             filelist.append({'id': item['id'], 'name': item['name'], 'mimeType': item['mimeType'],
-                            'parents': item.get('parents', ['No Parent'])})
+                             'parents': item.get('parents', ['No Parent'])})
         # print(f"filelist: {json.dumps(filelist, indent=2)}")      # TODO Remove this
 
     return json.dumps(filelist, indent=4)
@@ -822,16 +906,16 @@ def tag_reader(objid=str):
             result = db.read_transaction(lambda tx: list(tx.run(objfind)))
         # print(f"Result: {result}")
         tags = []
-        for record in result:
-            tags.append(dict(record))
-            # print("dict(record) %s" % dict(record))
-
         if len(result) == 0:
             tags = [{'tag': 'No Tags'}]
+        else:
+            for record in result:
+                tags.append(dict(record))
+                # print("dict(record) %s" % dict(record))
     else:
         tags = [{'tag': 'No ID'}]
 
-    print(f"in eme.doc_reader {objid}")
+    print(f"in eme.tag_reader {objid}")
     # print(f"taglist is: {taglist}")
 
     # return json.dumps(result, indent=4)

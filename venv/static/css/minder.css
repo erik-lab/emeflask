@@ -1,0 +1,240 @@
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=windows-1252">
+    <link rel="alternate stylesheet" type="text/css" href="resource://gre-resources/plaintext.css"
+
+      title="minder">
+  </head>
+  <body>
+    <pre>/*
+*/
+body {
+    font-family: cursive;
+    font-size: 12pt;
+}
+
+.headbox {
+    font-size: 8pt;
+}
+
+a.isDisabled {
+    pointer-events: none;
+    color: gray;
+}
+div#headrow {
+    border-width:0px;
+	border-style:solid;
+	border-color:blue;
+}
+
+div#headleft {
+    align: center;
+    border-width:1px;
+	border-style:solid;
+	border-color:gray;
+    height:250px;
+    max-height: 200px;
+    margin-bottom: 10px;
+    overflow:scroll;
+}
+div#headcenter {
+    align: center;
+    max-height: 100px;
+    margin-bottom: 10px;
+}
+
+input#thought {
+    font-size: 9pt;
+}
+
+div#headright {
+    align: center;
+    border-width:1px;
+	border-style:solid;
+	border-color:gray;
+    height:250px;
+    max-height: 200px;
+    margin-bottom: 10px;
+    overflow:scroll;
+}
+img {
+	max-width: 100% ;
+	width: auto ;
+	height: auto ;
+}
+
+meter, progress, output {
+	max-width: 100% ;
+}
+div#maincontainer {
+	border-width:0px;
+	border-style:solid;
+	border-color:white;
+}
+div#mainrow {
+	border-width:0px;
+	border-style:solid;
+	border-color:green;
+}
+div#titlehr {
+	border-width:4px;
+	border-style:solid;
+	border-color:gray;
+	background-color:gray;
+}
+div#docs {
+    color: black;
+    border-width:0px;
+	border-style:solid;
+	border-color:gray;
+	height: 400px;
+}
+div#docs_div {
+    color: black;
+    border-width:1px;
+	border-style:solid;
+	border-color:gray;
+	height: 340px;
+    overflow: scroll;
+}
+div#tags {
+    color: black;
+    border-width:0px;
+	border-style:solid;
+	border-color:gray;
+	height: 400px;
+}
+div#tags_div {
+    color: black;
+    border-width:1px;
+	border-style:solid;
+	border-color:gray;
+	height: 340px;
+    overflow: scroll;
+}
+div#thoughts {
+    color: black;
+    border-width:0px;
+	border-style:solid;
+	border-color:gray;
+	height: 400px;
+
+}
+div#thoughts_div {
+    color: black;
+    border-width:1px;
+	border-style:solid;
+	border-color:gray;
+	height: 340px;
+    overflow: scroll;
+}
+
+table#doctable {
+    font-size: 9pt;
+    overflow-x: scroll;
+    max-width: 1000px;
+    table-layout: fixed;
+}
+
+table#tagtable {
+    font-size: 9pt;
+    overflow-x: scroll;
+    max-width: 1000px;
+    table-layout: fixed;
+}
+
+table#thoughttable {
+    font-size: 9pt;
+    overflow-x: scroll;
+    max-width: 1000px;
+    table-layout: fixed;
+}
+
+div#controls {
+    color: black;
+    border-width:1px;
+	border-style:solid;
+	border-color:gray;
+	height: 190px;
+}
+
+.go_btn {
+    width: 40px;
+    background-color: lightGreen;
+}
+
+.action_btn {
+    background-color: lightGreen;
+    align: center;
+}
+
+.big_btn {
+    width: 200px;
+}
+
+.little_btn {
+    width: 30px;
+    height: 25px;
+	font-size: 9pt;
+}
+
+div#brains {
+    color: black;
+    border-width:1px;
+	border-style:solid;
+	border-color:gray;
+	height: 190px;
+}
+
+#carousel {
+    width: 100%;
+    height: 120px;
+    background-color: #FFFFFF;
+    overflow-x: scroll;
+    overflow-y: hidden;
+    white-space:nowrap;
+}
+
+.slideHolder {
+    width: 100px;
+    height: 100px;
+    display: inline-block;
+    text-align: center;
+    justify-content: center;
+    white-space:nowrap;
+    border-width: 0px;
+	border-style: solid;
+	border-color: blue;
+	font-size: 9pt;
+}
+
+.slide {
+    max-height: 120px;
+    max-width: 90px;
+    width:80px;
+    margin: 0 auto;
+    text-align: center;
+    float: left;
+	border-width: 0px;
+	border-style: solid;
+	border-color: red;
+	font-size: 9pt;
+}
+
+.slide img {
+    height: 50px;
+    width: 50px;
+}
+
+div#footcontainer {
+    background-color: AliceBlue;
+    color: SlateGray;
+	border-width: 1px;
+	border-style: solid;
+	border-color: LightGray;
+	text-align: center;
+	font-size: 9pt;
+}
+    </pre>
+  </body>
+</html>

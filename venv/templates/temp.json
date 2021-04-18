@@ -1,0 +1,18 @@
+{
+  'acct': {
+    'name': 'Account #1'
+  },
+  'source': {
+    'name': 'Gmail Doc'
+  },
+  'parent': {
+    'name': 'CATEGORY_FORUMS'
+  },
+  'doc': {
+    'name': '2nd 3 fridays kirkwood.docx',
+    'id': 'ANGjdJ9xMvBhsSOVFmV3_Dol2AaUidtYO0JrdTWklKb1HtO5ROF2te6UPmlpJDvlYBc666C3CkMTRIfh1FgO84D-XbG8gNgcvSWGVNRD3DUNv4_CJDxvTKlgqeJxmk8PDHq7TMEjulHNqHjEyLyLStCNCsbR4y8oiThEPnjSz-FrJNRHXfbJs0jAv069jPQCkyPDAi2nlZTG308ti61BgE5lwidKMRL0eqPre6f7Go7hiEyB8XdAI5wx5u8neoOTyupA6IIeUBS4SsZDzYtvvCOURpvolcqNHVo3jY67qzfyPTbZ0rqyNqDeeJKSlMyopBfelJlybvy-gYx4tJ-maw9keo4jDO84HGv8tKjmufdTD0r_uMl-tNPs2owqDSjF6TzI-S5ZFhU57UMTV-AB',
+    'mimeType': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'last_modified': 'Wed, 31 Mar 2021 11:27:30 +0000',
+    'obj_source_id': '1788809eb26d9f14'
+  }
+}

@@ -47,7 +47,7 @@ def doc_read_handler():
 
 # doc list reader Handler for shared docs
 # background process happening without any refreshing
-@app.route('/sharedreader/', methods=['GET', 'POST', 'PUT'])
+@app.route('/sharedreader/', methods=['GET'])
 def shared_read_handler():
     return eme.doc_reader(shared=True)
 
@@ -61,11 +61,30 @@ def tag_read_handler(docid='missing'):
     return eme.tag_reader(docid)
 
 
-# Play with EventBrite
-@app.route('/event/', methods=['GET'])
-def event_handler():
-    print(f"Event handler")
-    return eme.tag_reader(docid)
+# Doc Finder Interface
+@app.route('/finder/', methods=['GET'])
+def finder_handler():
+    print(f"Finder handler")
+    varlist = eme.get_session_vars()
+    return render_template('docFinder.html', varlist=varlist)
+
+
+# Doc Finder Interface
+@app.route('/finder/view/', methods=['GET'])
+def finder_view_handler():
+    print(f"Finder view handler")
+    varlist = eme.get_session_vars()
+    viewtype = request.args.get('viewtype', type=str)
+    result = eme.finder(viewtype)
+    return result
+
+
+# Minder Interface
+@app.route('/minder/', methods=['GET'])
+def minder_handler():
+    print(f"Minder handler")
+    varlist = eme.get_session_vars()
+    return render_template('minder.html', varlist=varlist)
 
 
 def main():
