@@ -22,6 +22,8 @@ import os
 import sys
 from flask import Response
 import base64
+import nltk
+from nltk.corpus import stopwords
 
 # import pandas
 
@@ -34,7 +36,7 @@ SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly',
           'https://www.googleapis.com/auth/gmail.readonly']
 DISCOVERY_DOC = 'https://docs.googleapis.com/$discovery/rest?version=v1'
 DOCUMENT_ID = '1ht6PMhI5JIcaQLqgsMBQhwOIIlHYr455'  # used for debugging and testing
-
+STOPWORDS = stopwords.words('english')
 
 def get_credentials(account):
     """ TODO Get valid user credentials from database.
@@ -173,6 +175,7 @@ class Eme_Session:
         self.path_nm = ['/']
         self.path_id = ['root']
         self.shared_view = False
+        self.object_list = []
         # TODO convert account details to a list of account objects
 
     def add_account(self, name, account_id, service, path_nm='', path_id=''):
@@ -276,7 +279,7 @@ class Eme_Object:
         typemerge = "merge (:ObjectType {{name: '{0}'}})"
         acctmerge = "merge (:Account {{name: '{0}'}})"
         parentmerge = "merge (:Parent {{name: '{0}'}})"
-        emedb.run(objmerge.format(self.id, self.name, self.modified, self.obj_source_id, self.mimeType))
+        emedb.run(objmerge.format(self.id, self.name.lower(), self.modified, self.obj_source_id, self.mimeType))
         emedb.run(sourcemerge.format(self.source))
         emedb.run(typemerge.format(self.type))
         emedb.run(acctmerge.format(self.account))
@@ -325,7 +328,7 @@ class Eme_Object:
         # TODO probably should wrap the above in a try/except block
 
 
-class eme_graph:
+class EmeGraph:
     def __init__(self, uri, user, password):
         self.driver = GraphDatabase.driver(uri, auth=(user, password))
 
@@ -335,8 +338,8 @@ class eme_graph:
     def run(self, cmd):
         with self.driver.session() as dbsession:
             db_result = dbsession.run(cmd)
-            for record in db_result:
-                print("DB_result Record :%s" % record)
+            for rec in db_result:
+                print("DB_result Record :%s" % rec)
         return db_result
 
     def confirm_required_objects(self):
@@ -349,6 +352,172 @@ class eme_graph:
                   "merge (o)-[:owns]->(a)"
             dbsession.run(rel)
         # TODO - figure out how to determine if there was an error - shouldn't be one, but...
+
+
+def minder_init():
+    """
+    Perform any setup step for opening the finder Page
+    e.g. Initiate Session, setup database etc
+
+    :return:
+    """
+    return True
+
+
+def minder_go_obj(taglist):
+    """
+    User clicked Go button -
+    input tags parsed and passed from page
+    add other context tags
+    find objects with matching tags
+    Return list of objects
+    save object list reference to Session global
+
+    :return: Return object_list
+    """
+    print(f"In minder_go_obj  Tags: {taglist}")
+    if False:
+        result = json.dumps([
+            {"acct": {"name": "Account #1"}, "source": {"name": "Gmail Doc"}, "parent": {"name": "UNREAD"},
+             "doc": {"type": "node", "id": "156", "labels": ["Object"],
+                     "properties": {"name": "Photo #1 Feb 28, 12 29 58 PM.jpg", "mimeType": "image/jpeg",
+                                    "id": "ANGjdJ_i7KPA8U6L5aGDLbHo9xsBW-3pZYSKpLRucLLrgvhZBN5AMA9-ogdlawWg47CpN5BMDXsoSghN35L7hQm9LVp_3Nai7ZgZLLipIfIslvMNAblee1d952ervADvmaXGsq1-yDMrkz7kt6pKlJ4tYZg62VV8t-NNIpBcDsnVFm6uftdNBdju_Kxai2WwdNPMleLuyikrspR91iuyud7_3GWBOttjuAPS342XYJVI2HlSmBkMh5F__M1Yk1wTzmWr7bFgmbonITjfcFTp_swAI_cMgYD6JwLg08qPi5Z8ZhsYktueY7f_fTd1TlX0giUCYfDlp0fgXFzd7PNH2g-WVE78IgYD_cEE8wIyH1h1ghXc74P0wAUeuqLTVdqrfEmhqjDi4O3ZynZ3DXSR",
+                                    "last_modified": "Mon, 22 Mar 2021 04:14:37 -0700",
+                                    "obj_source_id": "17859a4d3ea6ddd4"}}},
+            {"acct": {"name": "Account #1"}, "source": {"name": "Gmail Doc"}, "parent": {"name": "test Folder"},
+             "doc": {"type": "node", "id": "173", "labels": ["Object"],
+                     "properties": {"name": "Photo #2 Feb 28, 12 29 58 PM.jpg", "mimeType": "image/jpeg",
+                                    "id": "ANGjdJ-PPSbB0rBrP59zkmhLRZRozFyaltK6Zy1gH8hjXiYKe6CpGPtN8A-hrFHODliSJC8OqMgXLZ1RRKpev3sMqCmzFkF1IDus2F6ZBDt_uqi5w3JaNOaeFOZu-LxZKLR683lmajNI33n2ZEWYTiJamZeKpKt3NFR0ouVJS8hHBSulnr2CmhnDktB8fOO9TWxW55JUbGSk4CancrBlb-sJSOpQ5Dkmv63F1mbydxXgpi44The5rMaIHXbtl3k1wfVg7xgvMt81UD68wV7l2aOXE9qTj8e7D-EUnFxJSKgawk_N8D2a71B5-DXS8kbY9Nq83ktfMEXRzyAZIDRvu9-uFVbENwidK4S0cdcjqzzAevvyXB1VhhoPJRL-H3Nv_DzVx_i0YDtuVf-HegRD",
+                                    "last_modified": "Sun, 7 Mar 2021 17:28:10 +0000",
+                                    "obj_source_id": "1780dbb70a624ae7"}}},
+            {"acct": {"name": "Account #1"}, "source": {"name": "Gmail Doc"}, "parent": {"name": "test Folder"},
+             "doc": {"type": "node", "id": "173", "labels": ["Object"],
+                     "properties": {"name": "Photo #3 Feb 28, 12 29 58 PM.jpg", "mimeType": "image/jpeg",
+                                    "id": "ANGjdJ-PPSbB0rBrP59zkmhLRZRozFyaltK6Zy1gH8hjXiYKe6CpGPtN8A-hrFHODliSJC8OqMgXLZ1RRKpev3sMqCmzFkF1IDus2F6ZBDt_uqi5w3JaNOaeFOZu-LxZKLR683lmajNI33n2ZEWYTiJamZeKpKt3NFR0ouVJS8hHBSulnr2CmhnDktB8fOO9TWxW55JUbGSk4CancrBlb-sJSOpQ5Dkmv63F1mbydxXgpi44The5rMaIHXbtl3k1wfVg7xgvMt81UD68wV7l2aOXE9qTj8e7D-EUnFxJSKgawk_N8D2a71B5-DXS8kbY9Nq83ktfMEXRzyAZIDRvu9-uFVbENwidK4S0cdcjqzzAevvyXB1VhhoPJRL-H3Nv_DzVx_i0YDtuVf-HegRD",
+                                    "last_modified": "Sun, 7 Mar 2021 17:28:10 +0000",
+                                    "obj_source_id": "1780dbb70a624ae7"}}},
+            {"acct": {"name": "Account #1"}, "source": {"name": "Gmail Doc"}, "parent": {"name": "test Folder"},
+             "doc": {"type": "node", "id": "173", "labels": ["Object"],
+                     "properties": {"name": "Photo #4 Feb 28, 12 29 58 PM.jpg", "mimeType": "image/jpeg",
+                                    "id": "ANGjdJ-PPSbB0rBrP59zkmhLRZRozFyaltK6Zy1gH8hjXiYKe6CpGPtN8A-hrFHODliSJC8OqMgXLZ1RRKpev3sMqCmzFkF1IDus2F6ZBDt_uqi5w3JaNOaeFOZu-LxZKLR683lmajNI33n2ZEWYTiJamZeKpKt3NFR0ouVJS8hHBSulnr2CmhnDktB8fOO9TWxW55JUbGSk4CancrBlb-sJSOpQ5Dkmv63F1mbydxXgpi44The5rMaIHXbtl3k1wfVg7xgvMt81UD68wV7l2aOXE9qTj8e7D-EUnFxJSKgawk_N8D2a71B5-DXS8kbY9Nq83ktfMEXRzyAZIDRvu9-uFVbENwidK4S0cdcjqzzAevvyXB1VhhoPJRL-H3Nv_DzVx_i0YDtuVf-HegRD",
+                                    "last_modified": "Sun, 7 Mar 2021 17:28:10 +0000",
+                                    "obj_source_id": "1780dbb70a624ae7"}}}
+        ], indent=4)
+        docs = result
+    else:
+        inlist = "["
+
+        for i in range(len(taglist)):
+            if i > 0:
+                inlist += ","
+            inlist += '"' + taglist[i].lower() + '"'
+        inlist += "]"
+        inlist = inlist.replace("'", "")
+        objfind =  "match (t:Tag)--(o:Object)--(ot:ObjectType) \
+                    where t.name IN " + \
+                    inlist + \
+                    " with t, o, ot \
+                    match(o)--(s:Source) \
+                    return o.name as object, ot.name as type, s.name as source, count(t) as tag_freq  \
+                    ORDER BY tag_freq desc"
+
+        print(f"Q: {objfind}")
+
+        try:
+            with emedb.driver.session() as db:
+                result = db.read_transaction(lambda tx: list(tx.run(objfind)))
+        except:
+            print("Error reading Object list in procedure minder_go_obj")
+            raise
+
+        # print(f"Result: {result}")
+        objs = []
+        for record in result:
+            objs.append(dict(record))
+            # print("dict(record) %s" % dict(record))
+
+        return_data = [{'objs': objs}]      # pack objects into element 0 of the results
+
+        # Now get the tags associated with the documents found
+        tagfind =  "match (t:Tag)--(o:Object)--(t2:Tag) \
+                    where t.name IN " + \
+                    inlist + \
+                   "return t2.name as name, count(o) as tag_freq \
+                    ORDER BY tag_freq desc"
+
+        try:
+            with emedb.driver.session() as db:
+                result = db.read_transaction(lambda tx: list(tx.run(tagfind)))
+        except:
+            print("Error reading tag list in procedure minder_go_obj")
+            raise
+
+        # print(f"Result: {result}")
+        objs = []
+        for record in result:
+            objs.append(dict(record))
+            # print("dict(record) %s" % dict(record))
+
+        return_data.append({'tags': objs})       # tags as element 2
+        # print(f"return_data: {return_data}")
+
+    return Response(json.dumps(return_data), mimetype="application/json")
+
+
+def minder_go_tags():
+    """
+    Step 2 after user clicks Go button -
+    The list of matched objects is in the session object
+    Pull the tags for all documents and compute frequency of unique tags
+
+    :return: Return tag_list ordered by freq desc
+    """
+    print(f"In minder_go_tags ")
+    if True:
+        result = json.dumps([
+            {'obj': [{'o': 1}, {'o': 2}, {'o': 5}, {'o': 4}]},
+            {'tag': [{'t': 9}, {'t': 8}, {'t': 7}, {'t': 6}]}
+        ], indent=4)
+        objs = result
+    else:
+        inlist = "["
+
+        taglist = ['erik', 'dahl']
+
+        for i in range(len(taglist)):
+            if i > 0:
+                inlist += ","
+            inlist += '"' + taglist[i].lower() + '"'
+        inlist += "]"
+        inlist = inlist.replace("'", "")
+        objfind =  "match (t:Tag)--(o:Object)--(ot:ObjectType) \
+                    where t.name IN " + \
+                    inlist + \
+                    " with t, o, ot \
+                    match(o)--(s:Source) \
+                    return o.name as object, ot.name as type, s.name as source, count(t) as tag_freq  \
+                    ORDER BY tag_freq desc"
+
+        print(f"Q: {objfind}")
+
+        try:
+            with emedb.driver.session() as db:
+                result = db.read_transaction(lambda tx: list(tx.run(objfind)))
+        except:
+            print("Error reading Object list in procedure minder_go_obj")
+            raise
+
+        # print(f"Result: {result}")
+        objs = []
+        for record in result:
+            objs.append(dict(record))
+            # print("dict(record) %s" % dict(record))
+
+        session.object_list = objs      # save objects in the session
+
+    return Response(objs, mimetype="application/json")
+    # return Response(json.dumps(objs), mimetype="application/json")
+
 
 
 def finder(viewtype):
@@ -411,14 +580,13 @@ def finder(viewtype):
             with emedb.driver.session() as db:
                 result = db.read_transaction(lambda tx: list(tx.run(docfind)))
         except:
-            print("Bad shit")
+            print("Error reading Object list in procedure Finder")
             raise
 
         # print(f"Result: {result}")
         docs = []
         for record in result:
             docs.append(dict(record))
-            pass
             # print("dict(record) %s" % dict(record))
 
     return Response(json.dumps(docs), mimetype="application/json")
@@ -431,7 +599,7 @@ def get_gmail_parents(service, ids):
     for pid in ids:
         try:
             res = session.gmail_service.users().labels().get(userId='me', id=pid).execute()
-            plist.append(res['name'])
+            plist.append(res['name'].lower())
         except:
             plist.append("No Labels")
             raise
@@ -446,7 +614,7 @@ def get_gdrive_parents(service, ids):
     for pid in ids:
         try:
             parent = service.files().get(fileId=pid).execute()
-            plist.append(parent['name'])
+            plist.append(parent['name'].lower())
         except:
             plist.append("No Parent")
 
@@ -457,11 +625,12 @@ def tag_source(thisdoc):
     print("in tag_source")
 
     tlist = []
-    tlist.extend(re.split("[; ,._\-\%]", thisdoc.name))
+    lowerdoc = thisdoc.name.lower()
+    tlist.extend(re.split("[; ,._\-\%]", lowerdoc))
     tlist.append(thisdoc.modified)
-    tlist.append(thisdoc.owner)
+    tlist.append(thisdoc.owner.lower())
     for tag in thisdoc.parents:
-        tlist.append(tag)
+        tlist.append(tag.lower())
     # TODO get list of shared with people
 
     return tlist
@@ -480,7 +649,7 @@ def tag_content(text):
     # print("Thelist %s" % thelist)
     for keyword in json_data['extractions']:
         # print("=> %s" % keyword['parsed_value'])
-        thelist.append(keyword['parsed_value'])
+        thelist.append(keyword['parsed_value'].lower())
     return thelist
 
 
@@ -535,6 +704,17 @@ def scan_gmail_doc(service, thisdoc):
         if txt and getKeywords:
             thisdoc.content_tags = tag_content(txt)
             # print("Content Taglist are: %s" % thisdoc.content_tags)
+        else:
+            # TODO Debugging - remove
+            maxtags = 50
+            txt = txt.replace("'", "")
+            tags = txt.split(None, maxtags)
+            ltags = [item.lower() for item in tags]
+            if len(ltags) > maxtags:
+                thisdoc.content_tags = ltags[0:-1]
+            else:
+                thisdoc.content_tags = ltags[0:]
+
 
         # TODO Add in ability to include user tags - may need rules on when to apply them
         thisdoc.save()
@@ -695,7 +875,7 @@ def scan_drive_folder(folder_id, recurse=False):
                     interesting += interest
             continue
         else:
-            thisdoc = Eme_Object('Google Docs', 'Account #1', 'doc', item['id'], item['name'], item['modifiedTime'],
+            thisdoc = Eme_Object('Google Drive', 'Account #1', 'doc', item['id'], item['name'], item['modifiedTime'],
                                  item['mimeType'], item.get('parents', ['its empty']),
                                  item['owners'][0].get('displayName', 'none'))
             # item['mimeType'], item['parents'], item['owners'][0].get('displayName', 'none'))
@@ -759,6 +939,17 @@ def scan_drive_doc(thisdoc):
         if txt and getKeywords:
             thisdoc.content_tags = tag_content(txt)
             # print("Content Taglist are: %s" % thisdoc.content_tags)
+        else:
+            # TODO Debugging - remove
+            maxtags = 50
+            txt = txt.replace("'", "")
+            tags = txt.split(None, maxtags)
+            ltags = [item.lower() for item in tags]
+            ltags = set(ltags) - set(STOPWORDS)
+            if len(tags) > maxtags:
+                thisdoc.content_tags = ltags[0:-1]
+            else:
+                thisdoc.content_tags = ltags[0:]
 
         # TODO Add in ability to include user tags - may need rules on when to apply them
         thisdoc.save()
@@ -922,13 +1113,22 @@ def tag_reader(objid=str):
     return Response(json.dumps(tags), mimetype="application/json")
 
 
+
 # #######  GLOBAL DATABASE CONNECTION
 try:
-    emedb = eme_graph("bolt://localhost:7687", "eme", "eme")  # TODO put the database creds in encrypted file
+    emedb = EmeGraph("bolt://localhost:7687", "eme", "eme")  # TODO put the database creds in encrypted file
     print("************** Connected to the eMe database")
     emedb.confirm_required_objects()
 
-    # ##  SETUP SESSION OBJECT
-    session = Eme_Session('', 'Not Connected', 'Connected', None)
 except:
     sys.exit("************** Error connecting to the eMe database")
+
+# ##  SETUP SESSION OBJECT
+nameq = "match(o:EME_Owner) return o.name as name"
+with emedb.driver.session() as db:
+    result = db.read_transaction(lambda tx: list(tx.run(nameq)))
+
+oname = None
+for record in result:
+    oname = dict(record)['name']
+session = Eme_Session(oname, 'Not Connected', 'Connected', None)

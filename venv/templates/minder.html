@@ -45,17 +45,18 @@
                 <center><b>What's New...</b></center>
                 <br>
                 <ul id="whatsNewList">
-                    <li class="wn_item1" class="wn_item">Item #1</li>
-                    <li class="wn_item2" class="wn_item">Item #2</li>
+                    <li id="wn_item1" class="wn_item">Item #1</li>
+                    <li id="wn_item2" class="wn_item">Item #2</li>
                 </ul>
             </div>
         </div>
+
         <div id="headcenter" class="col-4">
             <br>
             <center><b>What's on your mind?</b>
                 <br>
-                <input type="text" id="thought" name="thought" size="45">
-                <button class="go_btn" id="thoughtButton">Go!</button>
+                <input type="text" id="thought" name="thought" size="60%" onchange="go_button(); return false;" value="{{ varlist.name }}">
+                <button class="go_btn" id="thoughtButton" onclick="go_button();return false;">Go!</button>
             </center>
         </div>
         <div id="headright" class="col-4">
@@ -63,8 +64,8 @@
                 <center><b>Active Thoughts...</b></center>
                 <br>
                 <ul id="activeList">
-                    <li class="act_item1" class="act_item">Thought #1</li>
-                    <li class="act_item2" class="act_item">Thought #2</li>
+                    <li id="act_item1" class="act_item">Thought #1</li>
+                    <li id="act_item2" class="act_item">Thought #2</li>
                 </ul>
             </div>
         </div>
@@ -74,23 +75,35 @@
 <div id="maincontainer" class="container-fluid">
     <div id="mainrow" class="row">
         <div id="docs" class="col-4">
-            <center id="docTitle"><b>Documents</b></center>
+            <center id="docTitle"><b>
+                <select name="objects" id="objects">
+                    <option value="documents">Documents</option>
+                    <option value="events">Events</option>
+                    <option value="emails">Emails</option>
+                    <option value="socialposts">Social Posts</option>
+                </select>
+            </b></center>
             <div id="docs_div">
                 <div id="doclist">
                     <table id="doctable" class="table table-hover table-sm">
                         <thead>
                         <tr>
-                            <th scope="col">Name</th>
-                            <th scope="col">Account</th>
+                            <th scope="col" width="250px">Name</th>
                             <th scope="col">Source</th>
+                            <th scope="col">Freq</th>
                         </tr>
                         </thead>
                         <tbody>
-                        <!--                                <tr>-->
-                        <!--                                    <th scope="row">1</th>-->
-                        <!--                                    <td>tag</td>-->
-                        <!--                                    <td>22</td>-->
-                        <!--                                </tr>-->
+<!--                            <tr>-->
+<!--                                <td>Test</td>-->
+<!--                                <td>Test</td>-->
+<!--                                <td>Test</td>-->
+<!--                            </tr>-->
+<!--                            <tr>-->
+<!--                                <td>Test2</td>-->
+<!--                                <td>Test2</td>-->
+<!--                                <td>Test2</td>-->
+<!--                            </tr>-->
                         </tbody>
                     </table>
                 </div>
@@ -110,7 +123,6 @@
                         <tr>
                             <th scope="col">Tag</th>
                             <th scope="col">Freq</th>
-                            <th scope="col">Source</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -234,21 +246,6 @@
 
 <script type="text/javascript">
     init();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 </script>
 
 </html>

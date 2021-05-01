@@ -1,34 +1,112 @@
 // /static/index.js
-console.log('Starting minder')
+console.log('Starting minder');
+
+var object_data = {};
+var tag_data = {};
+
+function clear_table(table) {
+    // Preserve the header row
+    for (var i = 1;i<table.rows.length;){
+            table.deleteRow(i);
+        }
+}
+
+
+function load_objects() {
+        // clear the html table
+        var object_list = document.getElementById("doctable");
+        clear_table(object_list);
+
+        // find what object type is selected
+        obj_selected = $("#objects").val();
+        if (obj_selected == 'documents') {
+            lookfor = 'doc';
+        }
+        else if (obj_selected == 'emails') {
+            lookfor = 'email'
+        }
+        else {
+            lookfor = 'other'
+        }
+
+        // reload the visible object type
+
+        for (row of object_data) {
+            // if the row is of the right type, then add it, else
+            if (row.type == lookfor) {
+                $('#doctable').append('<tr>'
+                + '<td scope="row" width="200px">' + row.object
+                + '</td><td width="20px">' + row.source
+                + '</td><td width="20px">' + row.tag_freq
+                + '</td></tr>');
+            }
+        }
+}
+
+
+function load_tags() {
+        // clear the html table
+        var object_list = document.getElementById("tagtable");
+        clear_table(object_list);
+//        console.log("tag_data.tag[0]: ", tag_data.tag[0]);
+
+        // reload the tag list
+
+        for (row of tag_data) {
+            // add all the tag rows
+            $('#tagtable').append('<tr>'
+            + '<td scope="row" width="200px">' + row.name
+            + '</td><td width="20px">' + row.tag_freq
+            + '</td></tr>');
+        }
+}
+
+
+function go_button() {
+    console.log("go_button");
+//    console.log("go_button");
+
+    user_thought = $("#thought")
+    tags = user_thought.val().split(" ");
+
+//     console.log(tags);
+
+    //  Add other contextual tags
+    //  like what?  Last go?  previous thought? What's New?
+
+    //  Now call the go endpoint to get all related objects
+    var tdata = {};
+    for (var i = 0; i < tags.length; i++) {
+        tdata["t"+i] = tags[i];
+    }
+    tdata['len'] = i;
+
+    $.getJSON('/minder/go/obj', tdata, function(data) {
+        console.log("/minder_go_obj Result ", data);
+
+        // store the full data set for reference
+        object_data = data[0].objs;
+        tag_data = data[1].tags;
+
+        // load the visible table
+        load_objects();
+        load_tags();
+
+        // Get the doc related tags
+//        $.getJSON('/minder/go/tags', function(data2) {
+//            console.log("/minder_go_tags Result ", data2);
+//
+//            // store the full data set for reference
+//            tag_data = data2;
+//            // load the visible table
+//            load_tags();
+//        })
+    })
+}
 
 
 function init(e) {
     console.log("running init()");
-
-    var docs = [        // stub for testing
-//        { name: 'Account #1',
-//            children: [
-//                { name: 'New Folder',
-//                  children: [
-//                    { name: 'File 1.1' },
-//                    { name: 'File 1.2' },
-//                    { name: 'Folder 1.1',
-//                    children: [
-//                        { name: 'File 1.1.1' },
-//                        { name: 'File 1.1.2' }
-//                    ]}
-//                ]}
-//            ]
-//        },
-//        { name: 'Account #2',
-//            children: [
-//                { name: 'File 2.1' }
-//            ]
-//        },
-//        { name: 'Account 3.0' }
-    ];
-//    make_tree(docs);
-//    load_docs();
  }
 
 

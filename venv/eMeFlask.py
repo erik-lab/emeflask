@@ -1,11 +1,11 @@
-from flask import Flask, render_template, request, g, jsonify, redirect
+from flask import Flask, render_template, request
 import eme
 
 app = Flask(__name__)
 # defining a route
 
 
-@app.route("/", methods=['GET', 'POST', 'PUT']) # decorator
+@app.route("/", methods=['GET', 'POST', 'PUT'])  # decorator
 def index():
     varlist = eme.get_session_vars()
     return render_template('index.html', varlist=varlist)
@@ -83,12 +83,35 @@ def finder_view_handler():
 @app.route('/minder/', methods=['GET'])
 def minder_handler():
     print(f"Minder handler")
+    eme.minder_init()
     varlist = eme.get_session_vars()
     return render_template('minder.html', varlist=varlist)
 
 
+@app.route('/minder/go/obj', methods=['GET'])
+def minder_go_obj_handler():
+    print(f"Minder Go object handler")
+    taglen = request.args.get('len', type=int)
+    taglist = []
+    for i in range(taglen):
+        taglist.append(request.args.get('t'+str(i), type=str))
+    result = eme.minder_go_obj(taglist)
+    print(f"taglist: {taglist}")
+    print(f"obj result: {result}")
+    return result
+
+
+@app.route('/minder/go/tags', methods=['GET'])
+def minder_go_thought_handler():
+    print(f"Minder Go tag handler")
+    taglist = request.args.get('viewtype', type=str)
+    result = eme.minder_go_tags()
+    print(f"tag result: {result}")
+    return result
+
+
 def main():
-    app.run(debug = True)
+    app.run(debug=True)
 
 
 if __name__ == '__main__':
