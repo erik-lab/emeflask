@@ -3,28 +3,139 @@
 <head>
     <meta charset="UTF-8">
     <title>Title</title>
+    <!--<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.4.1/d3.min.js"></script>-->
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script src = "https://d3js.org/d3-dispatch.v1.min.js"></script>
+<!--    <script src = "https://d3js.org/d3-selection.v1.min.js"></script>-->
+    <script src = "https://d3js.org/d3-drag.v1.min.js"></script>
 </head>
 <body>
 <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
-<script type="text/javascript">
-        $(function() {
-          $('a#test').on('click', function(e) {
-            e.preventDefault()
-            $.getJSON('/background_process_test',
-                function(data) {
-                alert("Hi there")
-              //do nothing
-            });
-            return false;
-          });
-        });
-</script>
-//button
+
+<style>
+    div {
+        border:1px solid red;
+        }
+    svg {
+        border:1px solid green;
+        }
+
+
+
+</style>
+
+<!--button-->
 <div class="container">
     <h3>Test</h3>
+    <div class="x" id="x" style="border-width:1px, border-color:black">
+        <svg width="1500" height="1500" id="s">
+            <rect x="0" y="0" width="300" height="200" fill="yellow"></rect>
+        </svg>
 
-            <a href="#" id="test"><button class="btn btn-default">Test</button></a>
-
+    </div>
+    <div class="graph" id="graph">
+        <ul id="list">
+            <li></li>
+        </ul>
+    </div>
 </div>
+
+<script type="text/javascript">
+
+    d3.select("div.x").append("span").text("fubar snubar");
+    d3.select("div.x").attr("style", "border:1px solid blue");
+    d3.select("#list").selectAll("li").data([1, 1, 1, 1, 2, 2])
+        .text(function(d) { return d; })
+        .enter()
+        .append("li")
+        .text(function(d)
+            { return "This is dynamically created element and the value is " + d; });
+    d3.selectAll("li")
+       .data([1, 1, 1, 2, 2])
+       .exit()
+       .remove();
+    t = d3.transition().duration(5000)
+    d3.selectAll("svg").transition(t).style("background-color", "lightblue");
+    d3.select("body").style("background-color", "lightblue")
+         // make the background-color lightblue.transition()
+         .style("background-color", "gray");
+         // make the background-color gray
+    d3.selectAll("h3").transition().style("color","green").duration(5000);
+
+             var data = [10, 5, 12, 15];
+
+         var width = 600
+            scaleFactor = 20,
+            barHeight = 30;
+
+         var graph = d3.select("body")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", barHeight * data.length);
+
+         var bar = graph.selectAll("g")
+            .data(data)
+            .enter()
+            .append("g")
+            .attr("transform", function(d, i) {
+               return "translate(0," + i * barHeight + ")";
+            });
+         bar.append("rect").attr("width", function(d) {
+            return d * scaleFactor;
+         })
+
+         .attr("height", barHeight - 1);
+
+         bar.append("text")
+            .attr("x", function(d) { return (d*scaleFactor + 20); })
+            .attr("y", barHeight / 2)
+            .attr("dy", ".05em")
+            .style("color", "green")
+            .text(function(d) { return d; });
+
+
+function ticked() {
+  var u = d3.select('svg')
+    .selectAll('circle')
+    .data(nodes)
+
+  u.enter()
+    .append('circle')
+    .attr('r', function(d) {
+        return d.radius})
+    .style("fill", "orange")
+    .style("stroke", "red")
+    .style("stroke-width", "1px")
+    .merge(u)
+    .attr('cx', function(d) {
+      return d.x
+    })
+    .attr('cy', function(d) {
+      return d.y
+    })
+
+  u.exit().remove()
+}
+
+
+var width = 1000, height = 1000;
+var numNodes = 100;
+var nodes = d3.range(numNodes).map(function(d) {
+  return {radius: Math.random() * 85 }
+});
+
+console.log("nodes: ", nodes);
+
+var simulation = d3.forceSimulation(nodes)
+  .force('charge', d3.forceManyBody().strength(5))
+  .force('center', d3.forceCenter(width / 2, height / 2))
+  .force('collision', d3.forceCollide().radius(function(d) {
+    return d.radius}))
+  .on("tick", ticked)
+  ;
+d3.select("circle").call(d3.drag().on("drag", mousemove));
+
+</script>
+
 </body>
 </html>

@@ -33,7 +33,7 @@ img {
 	width: auto ;
 	height: auto ;
 }
-input, select, button, textarea {
+select, button, textarea {
 	max-width: 100% ;
 }
 meter, progress, output {
