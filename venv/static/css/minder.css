@@ -32,10 +32,11 @@ div#headleft {
     border-width:1px;
 	border-style:solid;
 	border-color:gray;
-    height:250px;
-    max-height: 200px;
+    height:200px;
+    max-height: 120px;
     margin-bottom: 10px;
     overflow:scroll;
+    font-size: 9pt;
 }
 div#headcenter {
     align: center;
@@ -52,10 +53,11 @@ div#headright {
     border-width:1px;
 	border-style:solid;
 	border-color:gray;
-    height:250px;
-    max-height: 200px;
+    height:200px;
+    max-height: 120px;
     margin-bottom: 10px;
     overflow:scroll;
+    font-size: 9pt;
 }
 img {
 	max-width: 100% ;
@@ -87,66 +89,43 @@ div#docs {
     border-width:0px;
 	border-style:solid;
 	border-color:gray;
-	height: 400px;
+	height: 500px;
 }
 div#docs_div {
     color: black;
     border-width:1px;
 	border-style:solid;
 	border-color:gray;
-	height: 340px;
+	height: 440px;
     overflow: scroll;
 }
-div#tags {
+div#rels {
     color: black;
     border-width:0px;
 	border-style:solid;
 	border-color:gray;
-	height: 400px;
+	height: 500px;
 }
-div#tags_div {
+div#rels_div {
     color: black;
     border-width:1px;
 	border-style:solid;
 	border-color:gray;
-	height: 340px;
-    overflow: scroll;
-}
-div#thoughts {
-    color: black;
-    border-width:0px;
-	border-style:solid;
-	border-color:gray;
-	height: 400px;
-
-}
-div#thoughts_div {
-    color: black;
-    border-width:1px;
-	border-style:solid;
-	border-color:gray;
-	height: 340px;
+	height: 440px;
     overflow: scroll;
 }
 
 table#doctable {
     font-size: 9pt;
     overflow-x: scroll;
-    max-width: 1000px;
+    max-width: 600px;
     table-layout: fixed;
 }
 
-table#tagtable {
+table#reltable {
     font-size: 9pt;
     overflow-x: scroll;
-    max-width: 1000px;
-    table-layout: fixed;
-}
-
-table#thoughttable {
-    font-size: 9pt;
-    overflow-x: scroll;
-    max-width: 1000px;
+    max-width: 600px;
     table-layout: fixed;
 }
 

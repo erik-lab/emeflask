@@ -17,13 +17,13 @@
     <!-- <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/js/bootstrap.bundle.min.js"
             integrity="sha384-b5kHyXgcpbZJO/tY9Ul7kGkf1S0CWuKcCD38l8YkeH8z8QjE0GmW1gYU5S9FOnJ0"
             crossorigin="anonymous"></script> -->
+    <script src="{{ url_for('static', filename='js/go.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/minder.js') }}"></script> <!-- for Flask -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
 
 </head>
 
 <body>
-<script src="{{ url_for('static', filename='js/minder.js') }}"></script> <!-- for Flask -->
-
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
 
 <div id="headcontainer" class="container-fluid">
     <div id="header" class="row">
@@ -61,11 +61,11 @@
         </div>
         <div id="headright" class="col-4">
             <div id="active">
-                <center><b>Active Thoughts...</b></center>
+                <center><b>Previous Thoughts...</b></center>
                 <br>
-                <ul id="activeList">
-                    <li id="act_item1" class="act_item">Thought #1</li>
-                    <li id="act_item2" class="act_item">Thought #2</li>
+                <ul id="activeList" >
+                    <li id="act_item1" class="draggable" draggable="true">Thought #1</li>
+                    <li id="act_item2" class="draggable" draggable="true">Thought #2</li>
                 </ul>
             </div>
         </div>
@@ -81,6 +81,8 @@
                     <option value="events">Events</option>
                     <option value="emails">Emails</option>
                     <option value="socialposts">Social Posts</option>
+                    <option value="thoughts">Thoughts/ Concepts</option>
+                    <option value="tags">Tags</option>
                 </select>
             </b></center>
             <div id="docs_div">
@@ -88,8 +90,8 @@
                     <table id="doctable" class="table table-hover table-sm">
                         <thead>
                         <tr>
-                            <th scope="col" width="250px">Name</th>
-                            <th scope="col">Source</th>
+                            <th scope="col" width="220px">Name</th>
+                            <th scope="col" width="90px">Source</th>
                             <th scope="col">Freq</th>
                         </tr>
                         </thead>
@@ -114,58 +116,16 @@
             </div>
 
         </div>
-        <div id="tags" class="col-4">
-            <center id="docTitle"><b>Tags</b></center>
-            <div id="tags_div">
-                <div id="taglist">
-                    <table id="tagtable" class="table table-hover table-sm">
-                        <thead>
-                        <tr>
-                            <th scope="col">Tag</th>
-                            <th scope="col">Freq</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        <!--                                <tr>-->
-                        <!--                                    <th scope="row">1</th>-->
-                        <!--                                    <td>tag</td>-->
-                        <!--                                    <td>22</td>-->
-                        <!--                                </tr>-->
-                        </tbody>
-                    </table>
+        <div id="rel" class="col-8">
+            <center id="relTitle"><b>Mental Space</b></center>
+            <div id="rels_div">
+                <div id="sample">
+                  <div id="myDiagramDiv" style="background-color: whitesmoke; border: solid 1px black; width: 100%; height: 500px"></div>
+                  <p>
+                    As you drag a node around, the custom <a>ForceDirectedLayout</a> operates continuously, causing other nodes to be pushed
+                    aside or pulled along.
+                  </p>
                 </div>
-            </div>
-            <div>
-                <button class="action_btn little_btn" id="tag_add">+</button>
-                <button class="action_btn little_btn" id="tag_drop">-</button>
-            </div>
-
-        </div>
-        <div id="thoughts" class="col-4">
-            <center id="thoughtTitle"><b>Related Thoughts</b></center>
-            <div id="thoughts_div">
-                <div id="thoughtlist">
-                    <table id="thoughttable" class="table table-hover table-sm">
-                        <thead>
-                        <tr>
-                            <th scope="col">Thought</th>
-                            <th scope="col">Association %</th>
-                            <th scope="col">Source</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        <!--                                <tr>-->
-                        <!--                                    <th scope="row">1</th>-->
-                        <!--                                    <td>tag</td>-->
-                        <!--                                    <td>22</td>-->
-                        <!--                                </tr>-->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div>
-                <button class="action_btn little_btn" id="thought_add">+</button>
-                <button class="action_btn little_btn" id="thought_drop">-</button>
             </div>
 
         </div>
@@ -189,44 +149,44 @@
             <div id="carousel">
                 <div class="slideHolder col-2 text-wrap">
                     <!--                <div class="slideHolder col-2 text-wrap div-wrapper d-flex justify-content-center align-items-center">-->
-                    <div class="slide col-8 offset-2">
-                        <img src="{{ url_for('static', filename='img/brain.jpg') }}"><br>
+                    <div class="slide col-8 offset-2 draggable" draggable="true">
+                        <img draggable="false" src="{{ url_for('static', filename='img/brain.jpg') }}"><br>
                         Albert Einstein
                     </div>
                 </div>
                 <div class="slideHolder col-2 text-wrap">
-                    <div class="slide col-8 offset-2">
-                        <img src="{{ url_for('static', filename='img/brain.jpg') }}"><br>
+                    <div class="slide col-8 offset-2 draggable" draggable="true">
+                        <img draggable="false" src="{{ url_for('static', filename='img/brain.jpg') }}"><br>
                         Ky Holland
                     </div>
                 </div>
                 <div class="slideHolder col-2 text-wrap">
-                    <div class="slide col-8 offset-2">
-                        <img src="{{ url_for('static', filename='img/brain.jpg') }}"><br>
+                    <div class="slide col-8 offset-2 draggable" draggable="true">
+                        <img draggable="false" src="{{ url_for('static', filename='img/brain.jpg') }}"><br>
                         Winnie the Poo
                     </div>
                 </div>
                 <div class="slideHolder col-2 text-wrap">
-                    <div class="slide col-8 offset-2">
-                        <img src="{{ url_for('static', filename='img/brain.jpg') }}"><br>
+                    <div class="slide col-8 offset-2 draggable" draggable="true">
+                        <img draggable="false" src="{{ url_for('static', filename='img/brain.jpg') }}"><br>
                         The Buddha
                     </div>
                 </div>
                 <div class="slideHolder col-2 text-wrap">
-                    <div class="slide col-8 offset-2">
-                        <img src="{{ url_for('static', filename='img/brain.jpg') }}"><br>
+                    <div class="slide col-8 offset-2 draggable" draggable="true">
+                        <img draggable="false" src="{{ url_for('static', filename='img/brain.jpg') }}"><br>
                         Carl Sagan
                     </div>
                 </div>
                 <div class="slideHolder col-2 text-wrap">
-                    <div class="slide col-8 offset-2">
-                        <img src="{{ url_for('static', filename='img/brain.jpg') }}"><br>
+                    <div class="slide col-8 offset-2 draggable" draggable="true">
+                        <img draggable="false" src="{{ url_for('static', filename='img/brain.jpg') }}"><br>
                         Ryan Witten
                     </div>
                 </div>
                 <div class="slideHolder col-2 text-wrap">
-                    <div class="slide">
-                        <img src="{{ url_for('static', filename='img/brain.jpg') }}"><br>
+                    <div class="slide col-8 offset-2 draggable" draggable="true">
+                        <img sdraggable="false" rc="{{ url_for('static', filename='img/brain.jpg') }}"><br>
                         Alfred E. Newman
                     </div>
                 </div>
@@ -234,7 +194,8 @@
         </div>
     </div>
 </div>
-<div id="footcontainer" class="container-fluid">
+
+ <div id="footcontainer" class="container-fluid">
     <div id="footrow" class="row">
         <div id="foottext" class="col">
             Minder is a preliminary component of the E-Me suite - property of EncycloMedia -

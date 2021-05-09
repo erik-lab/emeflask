@@ -418,7 +418,7 @@ def minder_go_obj(taglist):
                     inlist + \
                     " with t, o, ot \
                     match(o)--(s:Source) \
-                    return o.name as object, ot.name as type, s.name as source, count(t) as tag_freq  \
+                    return o.name as object, o.id as key, ot.name as type, s.name as source, count(t) as tag_freq  \
                     ORDER BY tag_freq desc"
 
         print(f"Q: {objfind}")
@@ -439,12 +439,24 @@ def minder_go_obj(taglist):
         return_data = [{'objs': objs}]      # pack objects into element 0 of the results
 
         # Now get the tags associated with the documents found
-        tagfind =  "match (t:Tag)--(o:Object)--(t2:Tag) \
-                    where t.name IN " + \
-                    inlist + \
-                   "return t2.name as name, count(o) as tag_freq \
-                    ORDER BY tag_freq desc"
+        tagfind = "match (o1:Object)--(t1:Tag) \
+                   where t1.name in " + \
+                   inlist + \
+                  "match (o2:Object)--(t2:Tag) \
+                   where t2.name in " + \
+                   inlist + \
+                  "with o1, o2 \
+                   match (o1)--(t:Tag)--(o2) \
+                   where o1.id < o2.id \
+                   return o1.name as fname, o1.id as from, o2.name as tname, o2.id as to, count(t) as strength \
+                   order by strength desc"
 
+        # tagfind =  "match (t:Tag)--(o:Object)--(t2:Tag) \
+        #             where t.name IN " + \
+        #             inlist + \
+        #            "return t2.name as name, count(o) as tag_freq \
+        #             ORDER BY tag_freq desc"
+        #
         try:
             with emedb.driver.session() as db:
                 result = db.read_transaction(lambda tx: list(tx.run(tagfind)))
@@ -453,12 +465,12 @@ def minder_go_obj(taglist):
             raise
 
         # print(f"Result: {result}")
-        objs = []
+        rels = []
         for record in result:
-            objs.append(dict(record))
+            rels.append(dict(record))
             # print("dict(record) %s" % dict(record))
 
-        return_data.append({'tags': objs})       # tags as element 2
+        return_data.append({'rels': rels})       # tags as element 2
         # print(f"return_data: {return_data}")
 
     return Response(json.dumps(return_data), mimetype="application/json")
@@ -945,7 +957,7 @@ def scan_drive_doc(thisdoc):
             txt = txt.replace("'", "")
             tags = txt.split(None, maxtags)
             ltags = [item.lower() for item in tags]
-            ltags = set(ltags) - set(STOPWORDS)
+            ltags = list(set(ltags) - set(STOPWORDS))
             if len(tags) > maxtags:
                 thisdoc.content_tags = ltags[0:-1]
             else:
