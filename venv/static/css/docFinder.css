@@ -5,8 +5,8 @@
 
       title="DocFinder">
   </head>
-  <body>
-    <pre>/*
+<body>
+<pre>/*
 */
 body {
     font-family: cursive;
@@ -20,24 +20,6 @@ div#headleft {
 }
 div#headcenter {
     align: center;
-}
-.list-group {
-    height:500px;
-    max-height: 400px;
-    margin-bottom: 10px;
-    overflow:scroll;
-    font-size: 9pt;
-}
-img {
-	max-width: 100% ;
-	width: auto ;
-	height: auto ;
-}
-select, button, textarea {
-	max-width: 100% ;
-}
-meter, progress, output {
-	max-width: 100% ;
 }
 div#maincontainer {
 	border-width:0px;
@@ -55,19 +37,19 @@ div#titlehr {
 	border-color:gray;
 	background-color:gray;
 }
-div#nav {
+div#tags {
     color: black;
     border-width:1px;
 	border-style:solid;
 	border-color:gray;
-	height: 500px;
+	height: 800px;
 }
 div#docs {
     color: black;
     border-width:1px;
 	border-style:solid;
 	border-color:gray;
-	height: 500px;
+	height: 800px;
     overflow: scroll;
 }
 table#doctable {
@@ -76,20 +58,7 @@ table#doctable {
     max-width: 1000px;
     table-layout: fixed;
 }
-div#accounts {
-    color: black;
-    border-width:1px;
-	border-style:solid;
-	border-color:gray;
-	height: 200px;
-}
-div#controls {
-    color: black;
-    border-width:1px;
-	border-style:solid;
-	border-color:gray;
-	height: 200px;
-}
+
 div#footcontainer {
     background-color: AliceBlue;
     color: SlateGray;
@@ -99,12 +68,6 @@ div#footcontainer {
 	text-align: center;
 	font-size: 9pt;
 }
-div#tree1 {
-    height:500px;
-    max-height: 400px;
-    margin-bottom: 10px;
-    overflow:scroll;
-}
-    </pre>
-  </body>
+</pre>
+</body>
 </html>

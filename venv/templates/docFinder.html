@@ -7,7 +7,6 @@
     <meta name="generator" content="thesitewizard.com but mostly Erik now">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/docFinder.css') }}"> <!-- for Flask -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/jqtree.css') }}"> <!-- for Flask -->
     <!-- <link rel="stylesheet" href="../static/css/docTagger.css">   for direct file view -->
 
     <!-- Bootstrap & Font Awsome  -->
@@ -18,12 +17,11 @@
             integrity="sha384-b5kHyXgcpbZJO/tY9Ul7kGkf1S0CWuKcCD38l8YkeH8z8QjE0GmW1gYU5S9FOnJ0"
             crossorigin="anonymous"></script> -->
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/v/dt/dt-1.10.24/datatables.min.css"/>
-    
+
 </head>
 
 <body>
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
-<script src="{{ url_for('static', filename='js/tree.jquery.js') }}"></script> <!-- for Flask -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 <script src="{{ url_for('static', filename='js/docFinder.js') }}"></script> <!-- for Flask -->
 <script type="text/javascript" src="https://cdn.datatables.net/v/dt/dt-1.10.24/datatables.min.js"></script>
 
@@ -31,10 +29,9 @@
 <div id="headcontainer" class="container-fluid">
     <div id="headrow" class="row">
         <div id="headleft" class="col-2">
-            <h6><a href="/"><-- Home</a></h6><br>
-            <!--            {% for e in varlist2 %}
-                           - {{varlist2[e]}}<br>
-                       {% endfor %}   example of jinja/flask processing-->
+            <h6><a href="/"><-- Home</a></h6>
+            <br><br>
+            <a href="#" onclick="javascript:window.open('account_window','popupwindow','width=650,height=450,menu=0,status=0');">Account Settings</a>
         </div>
         <div id="headcenter" class="col-8">
             <header>
@@ -47,30 +44,25 @@
 </div>
 
 <br>
-<a href="#expand" id="expand">Expand all</a>
-
 <div id="maincontainer" class="container-fluid">
     <div id="mainrow" class="row">
-        <div id="nav" class="col-3">
-            <center id="docTitle"><b>Navigation</b></center>
-            <hr id="titlehr" style="height:4px">
-            <div id="tree1"></div>
-        </div>
-        <div id="docs" class="col-9">
-            <center id="docTitle"><b>Documents</b></center>
+        <div id="docs" class="col-8">
+            <center id="docTitle"><b>My Documents</b></center>
             <hr id="titlehr" style="height:4px">
             <div id="doclist">
-                <table id="doctable" class="table table-hover table-sm">
+                <table id="doctable" class="table table-hover table-sm display">
                     <thead>
-                    <tr>
-                        <th scope="col">Account</th>
-                        <th scope="col">Source</th>
-                        <th scope="col">Folder</th>
-                        <th scope="col">Name</th>
-                        <th scope="col">Modified</th>
-                        <th scope="col">Type</th>
+<!--                    <tr>-->
+<!--                        <th scope="col" width="100px">Id</th>-->
+<!--                        <th scope="col" width="100px">Account</th>-->
+<!--                        <th scope="col" width="100px">Source</th>-->
+<!--                        <th scope="col" width="100px">Folder</th>-->
+<!--                        <th scope="col" width="300px">Name</th>-->
+<!--                        <th scope="col" width="100px">Modified</th>-->
+<!--                        <th scope="col" width="100px">Type</th>-->
+<!--                        <th scope="col" width="50px">Shared</th>-->
 
-                    </tr>
+<!--                    </tr>-->
                     </thead>
                     <tbody>
                     <!--                                <tr>-->
@@ -79,20 +71,25 @@
                     <!--                                    <td>22</td>-->
                     <!--                                </tr>-->
                     </tbody>
+                    <tfoot>
+                        <tr>
+                            <td>filter</td>
+                            <td>filter</td>
+                            <td>filter</td>
+                            <td>filter</td>
+                            <td>filter</td>
+                            <td>filter</td>
+                            <td>filter</td>
+                            <td>filter</td>
+                        </tr>
+                    </tfoot>
                 </table>
 
             </div>
         </div>
-
-
-    </div>
-    <div id="controlrow" class="row">
-        <div id="accounts" class="col-6">
-            <center id="accountTitle"><b>Accounts</b></center>
-        </div>
-
-        <div id="controls" class="col-6">
-            <center id="controlTitle"><b>Controls</b></center>
+        <div id="nav" class="col-4">
+            <center id="tags"><b>Tags n stuff</b></center>
+            <hr id="titlehr" style="height:4px">
         </div>
     </div>
 </div>
@@ -107,12 +104,7 @@
 </body>
 
 <script type="text/javascript">
-
     init();
-
-
-
-
 </script>
 
 </html>

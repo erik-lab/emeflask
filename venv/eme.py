@@ -8,12 +8,13 @@ from apiclient import discovery
 from apiclient import errors
 from apiclient.http import MediaIoBaseDownload
 from httplib2 import Http
-from oauth2client import client
-from oauth2client import file
-from oauth2client import tools
+# from oauth2client import client
+# from oauth2client import file
+# from oauth2client import tools
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
 from operator import itemgetter, attrgetter
 from monkeylearn import MonkeyLearn
 from docx import Document
@@ -24,38 +25,180 @@ from flask import Response
 import base64
 import nltk
 from nltk.corpus import stopwords
+from datetime import datetime, timezone
+import dateutil.parser
 
 # import pandas
 
 
 # GLOBALS for eme Module for now - specific to Google API access
 # If modifying these scopes, delete the file drive.pickle.
-SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly',
-          'https://www.googleapis.com/auth/drive.readonly',
-          'https://www.googleapis.com/auth/documents.readonly',
-          'https://www.googleapis.com/auth/gmail.readonly']
+DriveSCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly',
+               'https://www.googleapis.com/auth/drive.readonly',
+               'https://www.googleapis.com/auth/documents.readonly']
+GmailSCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 DISCOVERY_DOC = 'https://docs.googleapis.com/$discovery/rest?version=v1'
 DOCUMENT_ID = '1ht6PMhI5JIcaQLqgsMBQhwOIIlHYr455'  # used for debugging and testing
 STOPWORDS = stopwords.words('english')
 
-def get_credentials(account):
-    """ TODO Get valid user credentials from database.
+
+def get_saved_credentials(acct, source):
+    '''Read in any saved OAuth data/tokens
+    '''
+    fileData = {}
+    filename = 'token-' + acct + '-' + source + '.json'
+    try:
+        with open(filename, 'r') as file:
+            fileData: dict = json.load(file)
+    except FileNotFoundError:
+        return None
+    if fileData and 'refresh_token' in fileData and 'client_id' in fileData and 'client_secret' in fileData:
+        c = Credentials(**fileData)
+        tokenread = "match (a:Account {{name: '{0}'}})-[:owns]-(s:Source {{name: '{1}' }}) return s.creds as cred"
+        with emedb.driver.session() as db:
+            r = db.read_transaction(lambda tx: list(tx.run(tokenread.format(acct, source))))
+        if len(r) == 0:
+            raise Exception(f"Unable to find a token for {acct}, {source}")
+        else:
+            cred = r[0]['cred']
+            creddict: dict = json.loads(cred)
+            r = Credentials(**creddict)
+        return r        # return c from file
+    return None
+
+
+def store_creds(credentials, acct, source):
+    if not isinstance(credentials, Credentials):
+        return
+    fileData = {'refresh_token': credentials.refresh_token,
+                'token': credentials.token,
+                'client_id': credentials.client_id,
+                'client_secret': credentials.client_secret,
+                'token_uri': credentials.token_uri}
+    filename = filename = 'token-' + acct + '-' + source + '.json'
+    with open(filename, 'w') as file:
+        json.dump(fileData, file)
+    c = Credentials(**fileData)     # cred to be returned from the file
+    # credjson = c.to_json()
+    token_string = json.dumps(fileData)
+    tokensave = "match (a:Account {{name: '{0}'}}) \
+                 merge (a)-[:owns]-(s:Source {{name: '{1}'}}) \
+                 set s.creds = '{2}' return s"
+    try:
+        res = emedb.run(tokensave.format(acct, source, token_string))
+    except:
+        raise
+
+    print(f'Credentials serialized to {filename} and the database.')
+    return
+
+
+def get_credentials_via_oauth(acct, source, filename='client_secret.json', scopes=None, saveData=True) -> Credentials:
+    '''Use data in the given filename to get oauth data'
+    '''
+    print(f"Get_credential_via_oauth.  Acct: {acct}, source: {source}")
+    iaflow: InstalledAppFlow = InstalledAppFlow.from_client_secrets_file(filename, scopes)
+    iaflow.run_local_server()
+    if saveData:
+        store_creds(iaflow.credentials, acct, source)
+    return iaflow.credentials
+
+
+def get_service(credentials, service='drive', version='v3'):
+    return build(service, version, credentials=credentials)
+
+
+#  TODO My versions - keep till the database conversion is compelete then drop
+def save_creds_to_db (acct, source, creds):
+    credjson = creds.to_json()
+    token_string = json.dumps(credjson, indent=2)
+    tokensave = "match (a:Account {{name: '{0}'}}) \
+                 merge (a)-[:owns]-(s:Source {{name: '{1}'}}) \
+                 set s.creds = '{2}' return s"
+    res = emedb.run(tokensave.format(acct, source, token_string))
+
+    return res
+
+
+#  TODO My versions - keep till the database conversion is compelete then drop
+def read_creds_from_db(acct, source):
+    tokenread = "match (a:Account {{name: '{0}'}})-[:owns]-(s:Source {{name: '{1}' }}) return s.creds as cred"
+    with emedb.driver.session() as db:
+        r = db.read_transaction(lambda tx: list(tx.run(tokenread.format(acct, source))))
+    if len(r) == 0:
+        print("Unable to find a token")
+        return 0
+    else:
+        cred = r[0]['cred']
+        # cred = json.loads(cred_record['cred'])
+        print(f"returned Cred, {cred}")
+        reconstituted = Credentials(cred)
+
+    return reconstituted
+
+#  TODO My versions - keep till the database conversion is compelete then drop
+def get_credentials(acct, source):
+    """ TODO Get valid user credentials from database for a specific source.
 
     If nothing has been stored, or if the stored credentials are invalid,
-    the OAuth 2.0 flow is completed to obtain the new credentials.
+    the Google-Auth flow is completed to obtain the new credentials.
 
     Returns:
         Credentials, the obtained credential.
     """
-    print("in Get Credentials")
-    store = file.Storage('token.json')
-    credentials = store.get()
-    account += 1  # debugging
+    print(f"in Get Credentials {acct}, {source}")
 
-    if not credentials or credentials.invalid:
-        flow = client.flow_from_clientsecrets('credentials.json', SCOPES)
-        credentials = tools.run_flow(flow, store)
-    return credentials
+    # os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'D:\\edahl\\Documents\\flask2\\venv\\Credentials.json'
+
+    creds = None
+    tokenfile = 'token-' + acct + '-' + source + '.json'
+    if os.path.exists(tokenfile):
+        creds = Credentials.from_authorized_user_file(tokenfile, DriveSCOPES)
+
+    # If there are no (valid) credentials available, let the user log in.
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'Credentials.json', DriveSCOPES)
+            creds = flow.run_local_server(port=0)
+        # Save the token for the next run
+        with open(tokenfile, 'w') as token:
+            token.write(creds.to_json())
+
+    save_creds_to_db(acct, source, creds)
+    recreds = read_creds_from_db(acct, source)
+    creds = recreds
+
+    return creds
+
+    # Old stull but has procedure for saving and restoring from DB
+    # store = file.Storage('token.json')
+    # credentials = store.get()
+
+    # TODO Testing - add token to the database & get it back out
+    # creds = credentials.to_json()
+    # token_string = json.dumps(creds, indent=2)
+    # tokensave = "merge (:Test {{name: 'test', cred: {0} }})"
+    # res = emedb.run(tokensave.format(token_string))
+    # tokenread = "match (t:Test) where t.name = 'test' return t.cred as cred"
+    # with emedb.driver.session() as db:
+    #     r = db.read_transaction(lambda tx: list(tx.run(tokenread)))
+    # if len(r) == 0:
+    #     print("Unable to find a token")
+    # else:
+    #     cred = r[0]['cred']
+    #     # cred = json.loads(cred_record['cred'])
+    #     print(f"returned Cred, {cred}")
+    # reconstituted = client.OAuth2Credentials.from_json(cred)
+    #
+    # # print(r)
+    #
+    # if not credentials or credentials.invalid:
+    #     flow = client.flow_from_clientsecrets('credentials.json', DriveSCOPES)
+    #     credentials = tools.run_flow(flow, store)
+    # return credentials
 
 
 def download_gdrive_file(service, file_id, mimetype, filename):
@@ -176,6 +319,7 @@ class Eme_Session:
         self.path_id = ['root']
         self.shared_view = False
         self.object_list = []
+        self.scanned_folders = []
         # TODO convert account details to a list of account objects
 
     def add_account(self, name, account_id, service, path_nm='', path_id=''):
@@ -220,7 +364,7 @@ class Eme_Session:
 
 class Eme_Object:
     def __init__(self, obj_source, obj_acct, obj_type, obj_id, obj_name, obj_mod, mimetype=None, parents=[],
-                 owner=None):
+                 owner=None, share_to_me='no', share_from_me='no'):
         self.source = obj_source
         self.type = obj_type
         self.id = obj_id
@@ -229,6 +373,8 @@ class Eme_Object:
         self.modified = obj_mod  # TODO read up on how to create indexes on date properties
         self.account = obj_acct
         self.owner = owner
+        self.shared_to_me = share_to_me
+        self.shared_from_me = share_from_me
         self.mimeType = mimetype
         self.parents = []
         self.parent_ids = parents
@@ -250,47 +396,57 @@ class Eme_Object:
                   "return o.name, o.last_modified, s.name, a.name, ot.name"
 
         with emedb.driver.session() as dbsession:
-            result = dbsession.read_transaction(lambda tx: list(tx.run(objfind.format(self.id))))
+            res = dbsession.read_transaction(lambda tx: list(tx.run(objfind.format(self.id))))
 
         interest = False
-        if len(result) == 0:
+        if len(res) == 0:
             interest = True
         else:
-            # print("record -> %s %s %s %s %s" % (result[0]['o.name'], result[0]['o.last_modified'],
-            #                                     result[0]['s.name'],
-            #                                     result[0]['ot.name'], result[0]['a.name']))  # Should only be 1 result
-            if self.name != result[0]['o.name']:
+            # print("record -> %s %s %s %s %s" % (res[0]['o.name'], res[0]['o.last_modified'],
+            #                                     res[0]['s.name'],
+            #                                     res[0]['ot.name'], res[0]['a.name']))  # Should only be 1 res
+            if self.name != res[0]['o.name']:
                 interest = True
-            elif self.modified != result[0]['o.last_modified']:
+                # print(f"The names are different {self.name}, {res[0]['o.name']}")
+            elif self.modified != res[0]['o.last_modified']:
                 interest = True
-            elif self.source != result[0]['s.name']:
+                # print(f"The Dates are different {self.modified}, {res[0]['o.last_modified']}")
+            elif self.source != res[0]['s.name']:
                 interest = True
-            elif self.account != result[0]['a.name']:
+                # print(f"The sources are different {self.source}, {res[0]['s.name']}")
+            elif self.account != res[0]['a.name']:
                 interest = True
-            elif self.type != result[0]['ot.name']:
+                # print(f"The account are different {self.account}, {res[0]['a.name']}")
+            elif self.type != res[0]['ot.name']:
                 interest = True
+                # print(f"The types are different {self.type}, {res[0]['ot.name']}")
+        print(f"Checking Interest: {self.name} - {interest}")
         return interest
 
     def save(self):
+        print(f"Saving Object: {self.name}")
+
         # first step is to ensure the document and contextual objects are in place
         objmerge = "merge (:Object {{id: '{0}', name: '{1}', last_modified: '{2}', \
-                   obj_source_id: '{3}', mimeType: '{4}'}})"
-        sourcemerge = "merge (:Source {{name: '{0}'}})"
+                   obj_source_id: '{3}', mimeType: '{4}', shared_to_me: '{5}',shared_from_me: '{6}'}})"
+        # acctmerge = "merge (:Account {{name: '{0}'}})"        # Can assume they exist already
+        # sourcemerge = "match (a:Account {{name: '{0}}'} \
+        #                merge (a)-[:owns]-(s:Source {{name: '{1}'}})"
         typemerge = "merge (:ObjectType {{name: '{0}'}})"
-        acctmerge = "merge (:Account {{name: '{0}'}})"
         parentmerge = "merge (:Parent {{name: '{0}'}})"
-        emedb.run(objmerge.format(self.id, self.name.lower(), self.modified, self.obj_source_id, self.mimeType))
-        emedb.run(sourcemerge.format(self.source))
+        emedb.run(objmerge.format(self.id, self.name.lower(), self.modified, self.obj_source_id, self.mimeType,
+                                  self.shared_to_me, self.shared_from_me))
+        # emedb.run(sourcemerge.format(self.source, self.account))
+        # emedb.run(acctmerge.format(self.account))
         emedb.run(typemerge.format(self.type))
-        emedb.run(acctmerge.format(self.account))
         for parent in self.parents:
             emedb.run(parentmerge.format(parent))
 
         # Next step is to add the relationships to contextual objects
-        relobjtype = "MATCH (o:Object),(ot:ObjectType) WHERE o.id = '{0}' AND ot.name = '{1}' merge (o)-[:is_a]->(ot)"
-        relsource = "MATCH (o:Object),(s:Source) WHERE o.id = '{0}' AND s.name = '{1}' merge (o)-[:is_from]->(s)"
         relacct = "MATCH (o:Object),(a:Account) WHERE o.id ='{0}' AND a.name = '{1}' merge (o)-[:belongs_to]->(a)"
+        relsource = "MATCH (o:Object),(s:Source) WHERE o.id = '{0}' AND s.name = '{1}' merge (o)-[:is_from]->(s)"
         relparent = "MATCH (o:Object),(p:Parent) WHERE o.id ='{0}' AND p.name = '{1}' merge (o)-[:is_in]->(p)"
+        relobjtype = "MATCH (o:Object),(ot:ObjectType) WHERE o.id = '{0}' AND ot.name = '{1}' merge (o)-[:is_a]->(ot)"
         relparent_source = "MATCH (p:Parent) WHERE p.name = '{0}' \
                           MATCH (s:Source) WHERE s.name = '{1}' \
                           MERGE (p)-[:is_from]->(s)"
@@ -346,7 +502,7 @@ class EmeGraph:
         # TODO figure out where owner and accounts come from
         with self.driver.session() as dbsession:
             dbsession.run("merge (n:EME_Owner {name: 'Erik Dahl', startDate: '01/30/2021'})")
-            dbsession.run("merge (a:Account {name: 'Account #1', startDate: '01/31/2021', creds: ''}) ")
+            dbsession.run("merge (a:Account {name: 'Account #1', startDate: '01/31/2021'}) ")
             rel = "MATCH (o:EME_Owner),(a:Account) " \
                   "WHERE o.name='Erik Dahl' AND a.name = 'Account #1' " \
                   "merge (o)-[:owns]->(a)"
@@ -532,13 +688,13 @@ def minder_go_tags():
 
 
 
-def finder(viewtype):
+def finder(options):
     """finder - call from UI to populate the list of files using a specific view type
 
     :param: viewtype: enum type of view to use
     :return: json list of documents to be rendered
     """
-    print(f"in eme.finder as {viewtype}")
+    print(f"in eme.finder as {options}")
 
     if False:
         result = json.dumps([
@@ -580,12 +736,12 @@ def finder(viewtype):
         #             RETURN acct {.name}, source {.name}, parent {.name}, doc {.*} \
         #             ORDER BY acct {.name}, source {.name}, parent {.name}, doc {.name} "
         #
-        docfind = "MATCH (a:Account)--(s:Source)--(p:Parent)--(o:Object) \
-                    with a as acct, s as source, p as parent, o as doc \
-                    RETURN acct {.name}, source {.name}, parent {.name}, doc {.*} \
-                    ORDER BY acct {.name}, source {.name}, parent {.name}, doc {.name} "
-
-        # docfind = "MATCH (a:Account)--(s:Source)--(p:Parent)--(o:Object) with a as acct, s as source, p as parent, collect(o) as doc RETURN acct {.name}, source {.name}, parent {.name}, doc {.*} ORDER BY acct {.name}, source {.name}, parent {.name}, doc {.name} "
+        docfind = 'MATCH (a:Account)--(s:Source)--(p:Parent)--(o:Object) \
+                    RETURN o.id as id, a.name as account, s.name as source, p.name as parent, o.name as name, \
+                    datetime(o.last_modified).epochMillis as mills, \
+                    apoc.date.format(datetime(o.last_modified).epochMillis, "ms", "yyyy/MM/dd hh:mm") as modified, \
+                    o.mimeType as mimeType, o.shared_to_me as shared_to, o.shared_from_me as shared_from \
+                    ORDER BY account, source,  parent, name'
 
         try:
             # result = emedb.run(docfind)
@@ -670,14 +826,14 @@ def scan_gmail_doc(service, thisdoc):
 
     :service:  the gmail service to use
     :thisdoc: the eme object to work on
-    :return: boolean if document is interesting
+    :return: boolean if document is interesting and was scanned
     """
     print(f"Email Scan Doc called: {thisdoc.name}")
     global session
 
-    if thisdoc.interesting() or True:
+    # print(f"thisdoc is interesting: {thisdoc.interesting()}")
+    if thisdoc.interesting():
         thisdoc.source_tags = tag_source(thisdoc)
-        # print("Source Tags are: %s" % thisdoc.source_tags)
 
         txt = ''  # initialize the doc text holder
         # TODO add more generic logic for any doc type
@@ -727,7 +883,6 @@ def scan_gmail_doc(service, thisdoc):
             else:
                 thisdoc.content_tags = ltags[0:]
 
-
         # TODO Add in ability to include user tags - may need rules on when to apply them
         thisdoc.save()
         return True
@@ -756,24 +911,27 @@ def scan_gmail_attachments(service):
         labels = msgDetail['labelIds']
         payload = msgDetail['payload']
         headers = payload['headers']
-        subject = sender = msgdate = recipient = ''
+        subject = sender = msgdate = isodate = recipient = ''
 
         # Look for Subject and Sender Email in the headers
         for d in headers:
             if d['name'] == 'Subject':
-                subject = d['value']
+                subject = d['value']        # TODO Add sender and subject to source tags
             if d['name'] == 'From':
                 sender = d['value']
             if d['name'] == 'Date':
                 msgdate = d['value']
+                dt = dateutil.parser.parse(msgdate)
+                isodate = dt.isoformat()
+
             if d['name'] == 'To':
                 recipient = d['value']
 
         msg_parts = payload.get('parts')  # fetching the message parts
         for part in msg_parts:
             if 'attachmentId' in part['body']:
-                thisdoc = Eme_Object('Gmail Doc', 'Account #1', 'doc', part['body']['attachmentId'],
-                                     part['filename'], msgdate, part['mimeType'],
+                thisdoc = Eme_Object('Gmail Doc', 'Account #1', 'doc', msg['id'] + "|||" + part['partId'],
+                                     part['filename'].lower(), isodate, part['mimeType'],
                                      labels, recipient)
                 thisdoc.parents = get_gmail_parents(service, thisdoc.parent_ids)
                 thisdoc.obj_source_id = msg['id']
@@ -794,13 +952,13 @@ def gmail_scanner():
 
     if motivation() == 'getdocs':  # TODO figure out the motivation driver
         interesting += scan_gmail_attachments(session.gmail_service)
-        result = json.dumps({'return_code': 'Motivated', 'scan_count': interesting}, indent=4)
+        res = json.dumps({'return_code': 'Motivated', 'scan_count': interesting}, indent=4)
     else:
-        result = json.dumps({'return_code': 'Not motivated', 'scan_count': '0'}, indent=4)
+        res = json.dumps({'return_code': 'Not motivated', 'scan_count': '0'}, indent=4)
 
-    print(result)
+    print(res)
 
-    return result
+    return res
 
 
 def retrieve_Gdrive_files(service, parent='root', filefilter=None, shared=False):
@@ -831,12 +989,13 @@ def retrieve_Gdrive_files(service, parent='root', filefilter=None, shared=False)
         param['orderBy'] = 'folder,name'
         param['spaces'] = 'drive'
     else:
-        param['q'] = f"trashed = false and '{parent}' in parents"
+        param['q'] = f"trashed = false and '{parent}' in parents and name contains '{filefilter}'"
         param['includeItemsFromAllDrives'] = 'false'
         param['supportsAllDrives'] = 'true'
         param['orderBy'] = 'folder,name'
         param['spaces'] = 'drive'
 
+    xfiles = res = {}
     while True:
         if page_token:
             param['pageToken'] = page_token
@@ -845,11 +1004,9 @@ def retrieve_Gdrive_files(service, parent='root', filefilter=None, shared=False)
             try:
                 xfiles = res.list(**param).execute()
             except:
-                print("Error with retrieve_gdrive_files - service.files() resource: %s" % res)
-                raise
+                print("Error with retrieve_gdrive_files - res.list(**param) xfiles: %s" % xfiles)
         except:
-            print("Error with retrieve_gdrive_files res.list() ")
-            raise
+            print(f"Error with retrieve_gdrive_files (service.files()) res = {res}")
 
         result.extend(xfiles['files'])
         page_token = xfiles.get('nextPageToken')
@@ -869,32 +1026,55 @@ def scan_drive_folder(folder_id, recurse=False):
         else
             scan_file(file_id)
 
-    TODO - need to implement folder history to avoid looping
     :param folder_id:
     :param recurse:
     :return: int: count of the number of interesting docs scanned
     """
-    global session
-    print(f"Scan_folder called: {folder_id}")
-    f = retrieve_Gdrive_files(session.drive_service, parent=folder_id, shared=session.shared_view)
-
     interesting = 0
-    for item in f:
-        if '.folder' in item['mimeType']:
-            if recurse:
-                if folder_id != item['id']:  # avoid opening the same folder
-                    interest = scan_drive_folder(item['id'], recurse)
-                    interesting += interest
-            continue
-        else:
-            thisdoc = Eme_Object('Google Drive', 'Account #1', 'doc', item['id'], item['name'], item['modifiedTime'],
-                                 item['mimeType'], item.get('parents', ['its empty']),
-                                 item['owners'][0].get('displayName', 'none'))
-            # item['mimeType'], item['parents'], item['owners'][0].get('displayName', 'none'))
-            thisdoc.parents = get_gdrive_parents(session.drive_service, thisdoc.parent_ids)
-            if scan_drive_doc(thisdoc):
-                interesting += 1
-            # print(f"ID; {item['id']}, \t {item['name']}")
+    global session
+    if folder_id not in session.scanned_folders:
+        print(f"Scan_folder ID: {folder_id}")
+        session.scanned_folders.append(folder_id)
+        f = retrieve_Gdrive_files(session.drive_service, parent=folder_id, filefilter="", shared=session.shared_view)
+
+        for item in f:
+            if '.folder' in item['mimeType']:
+                if recurse:
+                    if folder_id != item['id']:  # avoid opening the same folder
+                        interest = scan_drive_folder(item['id'], recurse)
+                        interesting += interest
+                continue
+            else:
+                dt = dateutil.parser.parse(item['modifiedTime'])
+                isodate = dt.isoformat()
+                shar_to = shar_from = "none"
+                shar_doc = item.get('ownedByMe', False)
+                if shar_doc:
+                    shar_to = 'no'
+                    # It's my document then, am I sharing it?
+                    shar_out = item.get('shared', False)
+                    if shar_out:
+                        shar_from = 'yes'
+                    else:
+                        shar_from = 'no'
+                else:
+                    shar_to = 'yes'
+                    shar_from = 'no'
+
+
+
+                thisdoc = Eme_Object('Google Drive', 'Account #1', 'doc', item['id'], item['name'], isodate,
+                                     item['mimeType'], item.get('parents', ['its empty']),
+                                     item['owners'][0].get('displayName', 'none'),
+                                     shar_to, shar_from)
+                # item['mimeType'], item['parents'], item['owners'][0].get('displayName', 'none'))
+                thisdoc.parents = get_gdrive_parents(session.drive_service, thisdoc.parent_ids)
+                if scan_drive_doc(thisdoc):
+                    interesting += 1
+                # print(f"ID; {item['id']}, \t {item['name']}")
+    else:
+        # we have seen this folder already - do nothing
+        pass
     return interesting
 
 
@@ -973,15 +1153,19 @@ def scan_drive_doc(thisdoc):
 def gdrive_scanner():
     """Scan all documents request from the UI
 
-    TODO: add shared flag to the object nodes
     :return: int - count of documents scanned
     """
+
+    global session
     if motivation() == 'getdocs':
         session.resetpath()
         session.shared_view = False
+        session.scanned_folders = []
         interesting = 0
         interesting += scan_drive_folder(session.path_id[0], recurse=True)
+        session.resetpath()
         session.shared_view = True
+        session.scanned_folders = []
         interesting += scan_drive_folder(session.path_id[0], recurse=True)
 
         result = json.dumps({'return_code': 'Motivated', 'scan_count': interesting}, indent=4)
@@ -991,7 +1175,7 @@ def gdrive_scanner():
 
 
 def get_session_vars():
-    # TODO modify to pull values from the database
+    # TODO Refactor and move to the Session Object as a method
     global session
     return {'name': session.name, 'dbstatus': session.dbstatus, 'account': session.account}
 
@@ -1002,51 +1186,74 @@ def connect_btn():
 
     # Connect to 3 services - GDrive, Gdocs, Gmail
     # and also returns Account owner information
-    # TODO refactor this into selarate connect modules
+    # TODO refactor this into separate connect modules then loop through all of the accounts in the database
+
+    session.setacct('Account #1')  # TODO get this from the database
 
     # GDrive Service
-    accountID = 1  # TODO get this from the database
-    session.setcreds(get_credentials(accountID))
-    service = build('drive', 'v3', credentials=session.creds)
-    http = session.creds.authorize(Http())
-    session.setdrive(service)
+    accountID = session.account  # TODO get this from the database
+    sourceName = 'Google Drive'  # TODO get this from the database
 
-    # GDocs Service
-    docs_service = discovery.build(
-        'docs', 'v1', http=http, discoveryServiceUrl=DISCOVERY_DOC)
-    session.setdoc(docs_service)
+    creds = get_saved_credentials(accountID, sourceName)
+    if not creds:
+        creds = get_credentials_via_oauth(accountID, sourceName, filename='Credentials.json', scopes=DriveSCOPES)
+
+    drive = get_service(creds, 'drive', 'v3')
+    session.setcreds(creds)     # TODO - confirm I dont need this and drop
+    session.setdrive(drive)
+
+    gdocs = get_service(creds, 'docs', 'v1')
+    session.setdoc(gdocs)
+
+    sourceName = 'Gmail Doc'  # TODO get this from the database
+
+    creds = get_saved_credentials(accountID, sourceName)
+    if not creds:
+        creds = get_credentials_via_oauth(accountID, sourceName, filename='Credentials.json', scopes=GmailSCOPES)
+
+    gmaildocs = get_service(creds, 'gmail', 'v1')
+    session.setgmail(gmaildocs)
+
+    # try:
+    #     service = build('drive', 'v3', credentials=session.creds)
+    # except:
+    #     print(f"Failed to setup the Drive Service ({error}) - Session.creds = {session.creds}")
+    # # http = session.creds.authorize(Http())
+    #
+    # # GDocs Service
+    # docs_service = discovery.build(
+    #     'docs', 'v1', http=http, discoveryServiceUrl=DISCOVERY_DOC)
+    # session.setdoc(docs_service)
 
     # GMail Service
     # creds = None
     # The file gmail.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
     # time.
-    pkl = None
-    if os.path.exists('gmail.pickle'):
-        with open('gmail.pickle', 'rb') as token:
-            pkl = pickle.load(token)
-    # If there are no (valid) credentials available, let the user log in.
-    if not pkl or not pkl.valid:
-        if pkl and pkl.expired and pkl.refresh_token:
-            pkl.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                'gmailCredentials.json', SCOPES)
-            pkl = flow.run_local_server(port=0)
-        # Save the pickle for the next run
-        with open('gmail.pickle', 'wb') as token:
-            pickle.dump(pkl, token)
+    # pkl = None
+    # if os.path.exists('gmail.pickle'):
+    #     with open('gmail.pickle', 'rb') as token:
+    #         pkl = pickle.load(token)
+    # # If there are no (valid) credentials available, let the user log in.
+    # if not pkl or not pkl.valid:
+    #     if pkl and pkl.expired and pkl.refresh_token:
+    #         pkl.refresh(Request())
+    #     else:
+    #         flow = InstalledAppFlow.from_client_secrets_file(
+    #             'gmailCredentials.json', GmailSCOPES)
+    #         pkl = flow.run_local_server(port=0)
+    #     # Save the pickle for the next run
+    #     with open('gmail.pickle', 'wb') as token:
+    #         pickle.dump(pkl, token)
+    #
+    # gmail_service = build('gmail', 'v1', credentials=pkl)
+    # Call the Gmail API to get labels
 
-    gmail_service = build('gmail', 'v1', credentials=pkl)
-    # Call the Gmail API
-    results = gmail_service.users().labels().list(userId='me').execute()
-    session.setgmail(gmail_service)
-    labels = results.get('labels', [])
+    # results = gmaildocs.users().labels().list(userId='me').execute()
+    # labels = results.get('labels', [])
     # print(f"labels: {json.dumps(labels, indent=4)}")
 
     # Account Owner Information
-    session.setname('Erik')  # TODO get this from the database
-    session.setacct('edahl9000@gmail.com')  # TODO get this from the database
     varlist = get_session_vars()
 
     return json.dumps(varlist, indent=4)
@@ -1059,25 +1266,21 @@ def doc_reader(shared=False):
     filelist = [{'id': '1', 'name': 'file #1', 'type': 'third file'},
                 {'id': '2', 'name': 'file #2', 'type': 'type 3'}]  # debugging
     filelist = []  # debugging
-    print("in doc_reader")  # TODO doc_reader remove this
+    print(f"in doc_reader {shared}")  # TODO doc_reader remove this
     global session
     session.resetpath()  # set back to root (shared will have to test for this)
 
     if shared:
         session.set_shared_view(True)
         try:
-            files = retrieve_Gdrive_files(session.drive_service, parent=session.path_id[0], shared=shared)
+            files = retrieve_Gdrive_files(session.drive_service, parent=session.path_id[0], filefilter="", shared=shared)
         except:
             print("Doc_Reader retrieve error - for shared Docs - ending")
             return
     else:
         session.set_shared_view(False)
-        try:
-            dir = session.path_id[len(session.path_id) - 1]  # TODO doc_reader will always be at root
-            files = retrieve_Gdrive_files(session.drive_service, parent=dir, shared=shared)
-        except:
-            print("Doc_Reader retrieve error - for My Docs - ending")
-            return
+        thisdir = session.path_id[len(session.path_id) - 1]  # TODO doc_reader will always be at root
+        files = retrieve_Gdrive_files(session.drive_service, parent=thisdir, filefilter="", shared=shared)
     if files:
         print("File Count: %s" % len(files))  # TODO doc_reader remove this
 

@@ -74,9 +74,16 @@ def finder_handler():
 def finder_view_handler():
     print(f"Finder view handler")
     varlist = eme.get_session_vars()
-    viewtype = request.args.get('viewtype', type=str)
-    result = eme.finder(viewtype)
+    options = request.args.get('options', type=str)
+    result = eme.finder(options)
     return result
+
+
+# testing
+@app.route('/finder/account_window', methods=['GET'])
+def test_handler():
+    print(f"testing here")
+    return render_template('account_window.html')
 
 
 # Minder Interface
